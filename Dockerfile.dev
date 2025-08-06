@@ -1,0 +1,29 @@
+# Development Dockerfile for Node.js Express with TypeScript
+FROM node:24-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies for hot reload and development tools
+RUN apk add --no-cache \
+    git \
+    bash \
+    curl
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (including dev dependencies)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Expose port
+EXPOSE 3000
+
+# Default command (can be overridden in docker-compose)
+CMD ["npm", "run", "dev"]

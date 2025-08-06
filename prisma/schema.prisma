@@ -1,0 +1,245 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Product Categories
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  parentId    String?   @map("parent_id")
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+// Products
+model Product {
+  id             String           @id @default(uuid())
+  name           String
+  description    String?
+  price          Decimal          @db.Decimal(10, 2)
+  categoryId     String           @map("category_id")
+  category       Category         @relation(fields: [categoryId], references: [id])
+  inventoryCount Int              @default(0) @map("inventory_count")
+  isActive       Boolean          @default(true) @map("is_active")
+  sku            String?          @unique
+  weight         Decimal?         @db.Decimal(8, 2)
+  dimensions     Json?            // {length, width, height}
+  images         String[]         @default([])
+  tags           String[]         @default([])
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  priceHistory   PriceHistory[]
+  orderItems     OrderItem[]
+  reviews        ProductReview[]
+  analytics      ProductAnalytics[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("products")
+}
+
+// Price History for Analytics
+model PriceHistory {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  oldPrice  Decimal  @map("old_price") @db.Decimal(10, 2)
+  newPrice  Decimal  @map("new_price") @db.Decimal(10, 2)
+  reason    String?  // "promotion", "cost_change", "market_adjustment"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([createdAt])
+  @@map("price_history")
+}
+
+// Orders (simplified for analytics)
+model Order {
+  id          String      @id @default(uuid())
+  userId      String?     @map("user_id") // Optional for guest orders
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @map("total_amount") @db.Decimal(10, 2)
+  currency    String      @default("USD")
+  shippingFee Decimal?    @map("shipping_fee") @db.Decimal(10, 2)
+  taxAmount   Decimal?    @map("tax_amount") @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  items       OrderItem[]
+  analytics   OrderAnalytics[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+// Order Items
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+  totalPrice Decimal @map("total_price") @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// Product Reviews (for sentiment analysis)
+model ProductReview {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id")
+  rating    Int      // 1-5 stars
+  title     String?
+  content   String?
+  isVerified Boolean @default(false) @map("is_verified")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("product_reviews")
+}
+
+// Analytics Tables
+
+// Product Analytics (aggregated data)
+model ProductAnalytics {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  views         Int      @default(0)
+  uniqueViews   Int      @default(0) @map("unique_views")
+  searches      Int      @default(0)
+  addToCarts    Int      @default(0) @map("add_to_carts")
+  purchases     Int      @default(0)
+  revenue       Decimal  @default(0) @db.Decimal(10, 2)
+  conversionRate Decimal @default(0) @map("conversion_rate") @db.Decimal(5, 4)
+
+  @@unique([productId, date])
+  @@index([date])
+  @@map("product_analytics")
+}
+
+// Order Analytics (daily aggregations)
+model OrderAnalytics {
+  id              String   @id @default(uuid())
+  orderId         String?  @map("order_id") // Nullable for aggregated data
+  order           Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  date            DateTime @db.Date
+  totalOrders     Int      @default(0) @map("total_orders")
+  totalRevenue    Decimal  @default(0) @map("total_revenue") @db.Decimal(12, 2)
+  averageOrderValue Decimal @default(0) @map("average_order_value") @db.Decimal(10, 2)
+  cancelledOrders Int      @default(0) @map("cancelled_orders")
+  refundedOrders  Int      @default(0) @map("refunded_orders")
+
+  @@unique([date, orderId])
+  @@index([date])
+  @@map("order_analytics")
+}
+
+// Search Analytics
+model SearchAnalytics {
+  id          String   @id @default(uuid())
+  query       String
+  resultsCount Int     @map("results_count")
+  clickedProductId String? @map("clicked_product_id")
+  userId      String?  @map("user_id")
+  sessionId   String?  @map("session_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([query])
+  @@index([createdAt])
+  @@map("search_analytics")
+}
+
+// Event Log (for Kafka events)
+model EventLog {
+  id          String   @id @default(uuid())
+  eventType   String   @map("event_type") // "product_view", "add_to_cart", "purchase", etc.
+  entityType  String   @map("entity_type") // "product", "order", "user"
+  entityId    String   @map("entity_id")
+  userId      String?  @map("user_id")
+  sessionId   String?  @map("session_id")
+  properties  Json?    // Additional event data
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([entityType, entityId])
+  @@index([processed])
+  @@index([createdAt])
+  @@map("event_logs")
+}
+
+// Notifications (for RabbitMQ)
+model Notification {
+  id          String            @id @default(uuid())
+  type        NotificationType
+  recipientId String?           @map("recipient_id")
+  title       String
+  message     String
+  data        Json?             // Additional notification data
+  status      NotificationStatus @default(PENDING)
+  retryCount  Int               @default(0) @map("retry_count")
+  scheduledAt DateTime?         @map("scheduled_at")
+  sentAt      DateTime?         @map("sent_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([type])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  LOW_INVENTORY
+  PRICE_CHANGE
+  HIGH_DEMAND
+  REVIEW_ALERT
+  ORDER_STATUS
+  SYSTEM_ALERT
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
