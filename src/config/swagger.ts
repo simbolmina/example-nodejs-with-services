@@ -19,6 +19,35 @@ const swaggerSpec = {
     },
   ],
   paths: {
+    '/': {
+      get: {
+        summary: 'API Gateway Root',
+        description: 'Welcome endpoint with API information',
+        tags: ['System'],
+        responses: {
+          '200': {
+            description: 'Welcome message and API information',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                      example:
+                        'Welcome to E-commerce Analytics Hub API Gateway',
+                    },
+                    version: { type: 'string', example: '1.0.0' },
+                    documentation: { type: 'string', example: '/docs' },
+                    health: { type: 'string', example: '/health' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     '/health': {
       get: {
         summary: 'Health Check',
@@ -1022,7 +1051,7 @@ const swaggerSpec = {
 
 export const setupSwagger = (app: Express) => {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-  app.get('/docs.json', (req, res) => {
+  app.get('/docs.json', (_req, res) => {
     res.json(swaggerSpec);
   });
 };
