@@ -175,6 +175,23 @@ curl http://localhost:3000/api/v1/products
 - `PUT /api/v1/categories/:id` - Update category
 - `DELETE /api/v1/categories/:id` - Delete category
 
+### Redis Management
+
+- `GET /api/v1/redis/health` - Redis health check
+- `GET /api/v1/redis/info` - Redis server information
+- `POST /api/v1/redis/set` - Set key-value pair
+- `GET /api/v1/redis/get/:key` - Get value by key
+- `DELETE /api/v1/redis/del/:key` - Delete key
+- `GET /api/v1/redis/exists/:key` - Check if key exists
+- `POST /api/v1/redis/hset` - Set hash field
+- `GET /api/v1/redis/hget/:key/:field` - Get hash field
+- `GET /api/v1/redis/hgetall/:key` - Get all hash fields
+- `POST /api/v1/redis/lpush` - Push to list (left)
+- `POST /api/v1/redis/rpush` - Push to list (right)
+- `POST /api/v1/redis/sadd` - Add to set
+- `GET /api/v1/redis/smembers/:key` - Get set members
+- `POST /api/v1/redis/flushdb` - Clear Redis database
+
 ## 🔧 Development
 
 ### Available Scripts

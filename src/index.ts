@@ -9,7 +9,9 @@ import dotenv from 'dotenv';
 // Import routes
 import productsRouter from './routes/products.js';
 import categoriesRouter from './routes/categories.js';
+import redisRouter from './routes/redis.js';
 import { setupSwagger } from './config/swagger.js';
+import redisService from './lib/redis.js';
 
 // Load environment variables
 dotenv.config();
@@ -62,6 +64,7 @@ app.get('/health', (_req: Request, res: Response) => {
 // API routes
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/categories', categoriesRouter);
+app.use('/api/v1/redis', redisRouter);
 
 // API status endpoint
 app.get('/api/v1/status', (_req: Request, res: Response) => {
@@ -69,6 +72,7 @@ app.get('/api/v1/status', (_req: Request, res: Response) => {
     message: 'API Gateway is running',
     services: {
       database: 'connected',
+      redis: redisService.isRedisConnected() ? 'connected' : 'disconnected',
       'product-service': 'active',
       'search-service': 'pending',
       'event-processor': 'pending',
@@ -77,6 +81,10 @@ app.get('/api/v1/status', (_req: Request, res: Response) => {
     database: {
       status: 'connected',
       type: 'PostgreSQL',
+    },
+    redis: {
+      status: redisService.isRedisConnected() ? 'connected' : 'disconnected',
+      type: 'Redis',
     },
   });
 });
@@ -105,21 +113,31 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 API Gateway server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 API status: http://localhost:${PORT}/status`);
   console.log(`🔥 Hot reload is working!`);
+
+  // Initialize Redis connection
+  try {
+    await redisService.connect();
+    console.log(`🔴 Redis connection established`);
+  } catch (error) {
+    console.error(`❌ Failed to connect to Redis:`, error);
+  }
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  await redisService.disconnect();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
+  await redisService.disconnect();
   process.exit(0);
 });
