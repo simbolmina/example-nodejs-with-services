@@ -31,6 +31,15 @@ services:
       - rabbitmq
     networks:
       - ecommerce-network
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
 
   # PostgreSQL Database
   postgres:

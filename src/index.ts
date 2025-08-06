@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 // Import routes
 import productsRouter from './routes/products.js';
 import categoriesRouter from './routes/categories.js';
+import { setupSwagger } from './config/swagger.js';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,9 @@ app.use(compression());
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Setup Swagger documentation
+setupSwagger(app);
 
 // Basic routes
 app.get('/', (_req: Request, res: Response) => {
