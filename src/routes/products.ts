@@ -1,41 +1,40 @@
 import express, { Request, Response } from 'express';
-import { prisma } from '../lib/prisma.js';
+import { PrismaClient } from '@prisma/client';
 import elasticsearchService from '../lib/elasticsearch.js';
+import kafkaService from '../lib/kafka.js';
 
 const router = express.Router();
+const prisma = new PrismaClient();
 
 // Helper function to index product in Elasticsearch
 async function indexProductInElasticsearch(product: any) {
   try {
-    const productDoc = {
+    const category = await prisma.category.findUnique({
+      where: { id: product.categoryId },
+    });
+
+    const document = {
       id: product.id,
       name: product.name,
       description: product.description,
-      price: product.price,
+      price: parseFloat(product.price),
       categoryId: product.categoryId,
-      categoryName: product.category?.name,
+      categoryName: category?.name || 'Unknown',
       inventoryCount: product.inventoryCount,
       sku: product.sku,
       weight: product.weight,
       dimensions: product.dimensions,
-      images: product.images,
-      tags: product.tags,
+      images: product.images || [],
+      tags: product.tags || [],
       isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
 
-    await elasticsearchService.indexDocument(
-      'products',
-      productDoc,
-      product.id
-    );
-    console.log(`✅ Product ${product.id} indexed in Elasticsearch`);
+    await elasticsearchService.indexDocument('products', document, product.id);
+    console.log(`✅ Indexed product ${product.name} in Elasticsearch`);
   } catch (error) {
-    console.error(
-      `❌ Failed to index product ${product.id} in Elasticsearch:`,
-      error
-    );
+    console.error('❌ Error indexing product in Elasticsearch:', error);
   }
 }
 
@@ -43,12 +42,9 @@ async function indexProductInElasticsearch(product: any) {
 async function removeProductFromElasticsearch(productId: string) {
   try {
     await elasticsearchService.deleteDocument('products', productId);
-    console.log(`✅ Product ${productId} removed from Elasticsearch`);
+    console.log(`✅ Removed product ${productId} from Elasticsearch`);
   } catch (error) {
-    console.error(
-      `❌ Failed to remove product ${productId} from Elasticsearch:`,
-      error
-    );
+    console.error('❌ Error removing product from Elasticsearch:', error);
   }
 }
 
@@ -57,44 +53,41 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
+    const categoryId = req.query.categoryId as string;
+    const offset = (page - 1) * limit;
+
+    const where: any = { isActive: true };
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
-        skip,
-        take: limit,
+        where,
         include: {
           category: true,
         },
-        where: {
-          isActive: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
       }),
-      prisma.product.count({
-        where: {
-          isActive: true,
-        },
-      }),
+      prisma.product.count({ where }),
     ]);
+
+    const pages = Math.ceil(total / limit);
 
     res.json({
       products,
       pagination: {
-        total,
         page,
         limit,
-        pages: Math.ceil(total / limit),
+        total,
+        pages,
       },
     });
   } catch (error) {
-    console.error('Error fetching products:', error);
-    return res.status(500).json({
-      error: 'Failed to fetch products',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('❌ Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
@@ -107,7 +100,8 @@ router.get('/search', async (req: Request, res: Response) => {
       minPrice,
       maxPrice,
       inStock,
-      sort,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
       page = 1,
       limit = 10,
     } = req.query;
@@ -116,72 +110,60 @@ router.get('/search', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Search query is required' });
     }
 
-    // Build Elasticsearch query
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    // Build search query
     const query: any = {
       bool: {
-        should: [
+        must: [
           {
             multi_match: {
-              query: q,
-              fields: ['name^3', 'description^2', 'tags', 'categoryName'],
+              query: q as string,
+              fields: ['name^2', 'description', 'tags'],
               fuzziness: 'AUTO',
-              type: 'best_fields',
-            },
-          },
-          {
-            wildcard: {
-              name: { value: `*${q}*` },
-            },
-          },
-          {
-            wildcard: {
-              description: { value: `*${q}*` },
+              minimum_should_match: '75%',
             },
           },
         ],
-        must: [{ term: { isActive: true } }],
         filter: [],
-        minimum_should_match: 1,
       },
     };
 
     // Add filters
     if (category) {
-      query.bool.filter.push({ term: { categoryId: category } });
+      query.bool.filter.push({
+        term: { categoryName: category },
+      });
     }
 
     if (minPrice || maxPrice) {
-      const range: any = { price: {} };
-      if (minPrice) range.price.gte = parseFloat(minPrice as string);
-      if (maxPrice) range.price.lte = parseFloat(maxPrice as string);
-      query.bool.filter.push({ range });
+      const range: any = {};
+      if (minPrice) range.gte = parseFloat(minPrice as string);
+      if (maxPrice) range.lte = parseFloat(maxPrice as string);
+      query.bool.filter.push({ range: { price: range } });
     }
 
-    if (inStock === 'true') {
-      query.bool.filter.push({ range: { inventoryCount: { gt: 0 } } });
+    if (inStock !== undefined) {
+      if (inStock === 'true') {
+        query.bool.filter.push({ range: { inventoryCount: { gt: 0 } } });
+      } else {
+        query.bool.filter.push({ term: { inventoryCount: 0 } });
+      }
     }
 
     // Build search options
     const searchOptions: any = {
+      query,
       size: parseInt(limit as string),
-      from: (parseInt(page as string) - 1) * parseInt(limit as string),
-    };
-
-    // Add sorting
-    if (sort) {
-      const [field, order] = (sort as string).split(':');
-      searchOptions.sort = [{ [field as string]: order || 'desc' }];
-    } else {
-      searchOptions.sort = [{ _score: 'desc' }];
-    }
-
-    // Add aggregations
-    searchOptions.aggs = {
-      categories: {
-        terms: { field: 'categoryName.keyword' },
-      },
-      inventory_status: {
-        terms: { field: 'inventoryCount' },
+      from: offset,
+      sort: [{ [sortBy as string]: sortOrder }],
+      aggs: {
+        categories: {
+          terms: { field: 'categoryName' },
+        },
+        inventory_status: {
+          terms: { field: 'inventoryCount' },
+        },
       },
     };
 
@@ -191,13 +173,25 @@ router.get('/search', async (req: Request, res: Response) => {
       searchOptions
     );
 
-    // Transform results
+    // Format results
     const products = result.hits.hits.map((hit: any) => ({
       ...hit._source,
       score: hit._score,
     }));
 
-    return res.json({
+    // Publish search analytics event
+    try {
+      await kafkaService.publishSearchAnalytics(q as string, products, {
+        category,
+        minPrice,
+        maxPrice,
+        inStock,
+      });
+    } catch (error) {
+      console.error('❌ Error publishing search analytics:', error);
+    }
+
+    res.json({
       products,
       total: result.hits.total.value,
       page: parseInt(page as string),
@@ -205,72 +199,8 @@ router.get('/search', async (req: Request, res: Response) => {
       aggregations: result.aggregations,
     });
   } catch (error) {
-    console.error('Error searching products:', error);
-    return res.status(500).json({
-      error: 'Failed to search products',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-// Get product suggestions (autocomplete)
-router.get('/suggest', async (req: Request, res: Response) => {
-  try {
-    const { q, size = 5 } = req.query;
-
-    if (!q) {
-      return res.status(400).json({ error: 'Query parameter is required' });
-    }
-
-    const query = {
-      suggest: {
-        suggestions: {
-          prefix: q,
-          completion: {
-            field: 'name_suggest',
-            size: parseInt(size as string),
-            skip_duplicates: true,
-          },
-        },
-      },
-    };
-
-    const result = await elasticsearchService.search('products', query);
-
-    return res.json({
-      suggestions: result.suggest?.suggestions?.[0]?.options || [],
-    });
-  } catch (error) {
-    console.error('Error getting suggestions:', error);
-    return res.status(500).json({
-      error: 'Failed to get suggestions',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-// Get product by ID from Elasticsearch (with full details)
-router.get('/:id/details', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ error: 'Product ID is required' });
-    }
-
-    const product = await elasticsearchService.getDocument('products', id);
-
-    if (!product || !product._source) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    return res.json({ product: product._source });
-  } catch (error) {
-    console.error('Error getting product details:', error);
-    return res.status(500).json({
-      error: 'Failed to get product details',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('❌ Error searching products:', error);
+    res.status(500).json({ error: 'Failed to search products' });
   }
 });
 
@@ -287,18 +217,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       where: { id },
       include: {
         category: true,
-        priceHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        reviews: {
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        },
-        analytics: {
-          orderBy: { date: 'desc' },
-          take: 30,
-        },
       },
     });
 
@@ -306,77 +224,52 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    return res.json({ product });
+    // Publish product viewed event
+    try {
+      await kafkaService.publishProductViewed(id, {
+        userAgent: req.get('User-Agent'),
+        ipAddress: req.ip,
+      });
+    } catch (error) {
+      console.error('❌ Error publishing product viewed event:', error);
+    }
+
+    res.json(product);
   } catch (error) {
-    console.error('Error fetching product:', error);
-    return res.status(500).json({
-      error: 'Failed to fetch product',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('❌ Error fetching product:', error);
+    res.status(500).json({ error: 'Failed to fetch product' });
   }
 });
 
 // Create new product
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      description,
-      price,
-      categoryId,
-      inventoryCount,
-      sku,
-      weight,
-      dimensions,
-      images,
-      tags,
-    } = req.body;
-
-    // Validate required fields
-    if (!name || !price || !categoryId) {
-      return res.status(400).json({
-        error: 'Missing required fields',
-        required: ['name', 'price', 'categoryId'],
-      });
-    }
-
-    // Check if category exists
-    const category = await prisma.category.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!category) {
-      return res.status(400).json({ error: 'Category not found' });
-    }
+    const productData = req.body;
 
     const product = await prisma.product.create({
-      data: {
-        name,
-        description,
-        price: parseFloat(price),
-        categoryId,
-        inventoryCount: inventoryCount || 0,
-        sku,
-        weight: weight ? parseFloat(weight) : null,
-        dimensions,
-        images: images || [],
-        tags: tags || [],
-      },
+      data: productData,
       include: {
         category: true,
       },
     });
 
-    // Index product in Elasticsearch
+    // Index in Elasticsearch
     await indexProductInElasticsearch(product);
 
-    return res.status(201).json({ product });
+    // Publish product created event
+    try {
+      await kafkaService.publishProductCreated(product);
+
+      // Check for low stock alert
+      await kafkaService.publishLowStockAlert(product);
+    } catch (error) {
+      console.error('❌ Error publishing product created event:', error);
+    }
+
+    res.status(201).json(product);
   } catch (error) {
-    console.error('Error creating product:', error);
-    return res.status(500).json({
-      error: 'Failed to create product',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('❌ Error creating product:', error);
+    res.status(500).json({ error: 'Failed to create product' });
   }
 });
 
@@ -390,12 +283,14 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Product ID is required' });
     }
 
-    // Convert numeric fields
-    if (updateData.price) {
-      updateData.price = parseFloat(updateData.price);
-    }
-    if (updateData.weight) {
-      updateData.weight = parseFloat(updateData.weight);
+    // Get the original product to track changes
+    const originalProduct = await prisma.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+
+    if (!originalProduct) {
+      return res.status(404).json({ error: 'Product not found' });
     }
 
     const product = await prisma.product.update({
@@ -406,16 +301,36 @@ router.put('/:id', async (req: Request, res: Response) => {
       },
     });
 
-    // Update product in Elasticsearch
+    // Re-index in Elasticsearch
     await indexProductInElasticsearch(product);
 
-    return res.json({ product });
+    // Publish product updated event with changes
+    try {
+      const changes = Object.keys(updateData).reduce((acc: any, key) => {
+        if (
+          originalProduct[key as keyof typeof originalProduct] !==
+          product[key as keyof typeof product]
+        ) {
+          acc[key] = {
+            from: originalProduct[key as keyof typeof originalProduct],
+            to: product[key as keyof typeof product],
+          };
+        }
+        return acc;
+      }, {});
+
+      await kafkaService.publishProductUpdated(product, changes);
+
+      // Check for low stock alert
+      await kafkaService.publishLowStockAlert(product);
+    } catch (error) {
+      console.error('❌ Error publishing product updated event:', error);
+    }
+
+    res.json(product);
   } catch (error) {
-    console.error('Error updating product:', error);
-    return res.status(500).json({
-      error: 'Failed to update product',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('❌ Error updating product:', error);
+    res.status(500).json({ error: 'Failed to update product' });
   }
 });
 
@@ -428,21 +343,63 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Product ID is required' });
     }
 
-    const product = await prisma.product.update({
+    const product = await prisma.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Soft delete
+    await prisma.product.update({
       where: { id },
       data: { isActive: false },
     });
 
-    // Remove product from Elasticsearch (or mark as inactive)
+    // Remove from Elasticsearch
     await removeProductFromElasticsearch(id);
 
-    return res.json({ message: 'Product deleted successfully', product });
+    // Publish product deleted event
+    try {
+      await kafkaService.publishProductDeleted(id);
+    } catch (error) {
+      console.error('❌ Error publishing product deleted event:', error);
+    }
+
+    res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Error deleting product:', error);
-    return res.status(500).json({
-      error: 'Failed to delete product',
-      message: error instanceof Error ? error.message : 'Unknown error',
+    console.error('❌ Error deleting product:', error);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+// Get product details from Elasticsearch
+router.get('/:id/details', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    const product = await elasticsearchService.getDocument('products', id);
+
+    if (!product || !product._source) {
+      return res
+        .status(404)
+        .json({ error: 'Product not found in Elasticsearch' });
+    }
+
+    res.json({
+      product: product._source,
     });
+  } catch (error) {
+    console.error(
+      '❌ Error fetching product details from Elasticsearch:',
+      error
+    );
+    res.status(500).json({ error: 'Failed to fetch product details' });
   }
 });
 

@@ -21,6 +21,7 @@ services:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - KAFKA_BROKERS=kafka:9092
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - KAFKAJS_NO_PARTITIONER_WARNING=1
     command: npm run dev
     restart: unless-stopped
     depends_on:

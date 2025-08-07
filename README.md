@@ -27,7 +27,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 
 ## 🚀 Tech Stack
 
-- **Runtime**: Node.js 24git + with native TypeScript support
+- **Runtime**: Node.js 24 with native TypeScript support
 - **Framework**: Express.js with modern middleware
 - **Database**: PostgreSQL (with Prisma ORM)
 - **Search**: Elasticsearch

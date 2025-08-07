@@ -9,7 +9,7 @@ const swaggerSpec = {
     title: 'E-commerce Analytics Hub API',
     version: '1.0.0',
     description:
-      'Real-time e-commerce analytics and notification system API with Elasticsearch integration',
+      'Real-time e-commerce analytics and notification system API with Elasticsearch and Kafka integration',
     contact: {
       name: 'API Support',
       email: 'support@example.com',
