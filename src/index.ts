@@ -11,8 +11,10 @@ import appRouter from './routes/app.js';
 import productsRouter from './routes/products.js';
 import categoriesRouter from './routes/categories.js';
 import redisRouter from './routes/redis.js';
+import elasticsearchAdminRouter from './routes/search.js';
 import { setupSwagger } from './config/swagger.js';
 import redisService from './lib/redis.js';
+import elasticsearchService from './lib/elasticsearch.js';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +50,12 @@ app.use('/', appRouter);
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/redis', redisRouter);
+app.use('/api/v1/elasticsearch', elasticsearchAdminRouter);
+
+// Basic health check route
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -78,17 +86,27 @@ app.listen(PORT, async () => {
   } catch (error) {
     console.error(`❌ Failed to connect to Redis:`, error);
   }
+
+  // Initialize Elasticsearch connection
+  try {
+    await elasticsearchService.connect();
+    console.log(`🔍 Elasticsearch connection established`);
+  } catch (error) {
+    console.error(`❌ Failed to connect to Elasticsearch:`, error);
+  }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   await redisService.disconnect();
+  await elasticsearchService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   await redisService.disconnect();
+  await elasticsearchService.disconnect();
   process.exit(0);
 });

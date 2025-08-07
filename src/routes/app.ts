@@ -48,12 +48,12 @@ router.get('/api/v1/status', (_req: Request, res: Response) => {
 });
 
 // 404 handler
-router.use('*', (req: Request, res: Response) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method,
-  });
-});
+// router.use('*', (req: Request, res: Response) => {
+//   res.status(404).json({
+//     error: 'Route not found',
+//     path: req.originalUrl,
+//     method: req.method,
+//   });
+// });
 
 export default router;
