@@ -29,14 +29,57 @@ A real-time e-commerce analytics and notification system built with modern Node.
 
 - **Runtime**: Node.js 24 with native TypeScript support
 - **Framework**: Express.js with modern middleware
+- **Architecture**: Controller/Service pattern with layered design
 - **Database**: PostgreSQL (with Prisma ORM)
-- **Search**: Elasticsearch
+- **Search**: Elasticsearch v9.1.0
 - **Caching**: Redis
-- **Message Streaming**: Apache Kafka
+- **Message Streaming**: Apache Kafka v7.4.0
 - **Message Queue**: RabbitMQ
 - **Containerization**: Docker & Docker Compose
 - **Testing**: Jest + Supertest
 - **Monitoring**: Prometheus + Grafana (optional)
+
+## 🏛️ Architecture Pattern
+
+This project implements a **professional Controller/Service architecture** that demonstrates enterprise-level Node.js development:
+
+```
+src/
+├── controllers/           # HTTP request/response handling
+│   ├── ProductController.ts
+│   ├── CategoryController.ts
+│   ├── ElasticsearchController.ts
+│   ├── RedisController.ts
+│   └── KafkaController.ts
+├── services/             # Business logic layer
+│   ├── ProductService.ts
+│   ├── CategoryService.ts
+│   ├── ElasticsearchService.ts
+│   ├── RedisService.ts
+│   └── KafkaService.ts
+├── routes/               # Route definitions only
+│   ├── products.ts
+│   ├── categories.ts
+│   ├── search.ts
+│   ├── redis.ts
+│   ├── kafka.ts
+│   └── app.ts
+├── lib/                  # External service clients
+│   ├── elasticsearch.ts
+│   ├── kafka.ts
+│   └── redis.ts
+└── middleware/           # Express middleware
+```
+
+### Architecture Benefits
+
+- **Separation of Concerns**: Each layer has a single responsibility
+- **Testability**: Easy to unit test controllers and services independently
+- **Maintainability**: Clear boundaries between HTTP handling and business logic
+- **Scalability**: Easy to extract services to microservices
+- **Type Safety**: Strong TypeScript interfaces throughout
+- **Error Handling**: Consistent error propagation across layers
+- **Dependency Injection**: Services injected into controllers
 
 ## 📊 Core Features
 
@@ -46,6 +89,8 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - Category management with hierarchical relationships
 - Inventory tracking with real-time updates
 - Price history and analytics
+- Automatic Elasticsearch indexing
+- Kafka event publishing for all operations
 
 ### 2. Real-time Event Processing
 
@@ -53,6 +98,8 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - Search query analytics and optimization
 - Purchase event processing with business rules
 - User behavior analysis and insights
+- Event-driven architecture with Kafka
+- Detailed event logging and monitoring
 
 ### 3. Advanced Search & Analytics
 
@@ -60,6 +107,8 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - Analytics search and filtering capabilities
 - Auto-suggestions and search optimization
 - Real-time search result analytics
+- Fuzzy matching and wildcard queries
+- Search aggregations and statistics
 
 ### 4. Intelligent Notifications
 
@@ -67,6 +116,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - High demand notifications and trend detection
 - Price change alerts and market analysis
 - Custom business rule triggers and automation
+- Kafka event streaming for real-time alerts
 
 ### 5. Analytics Dashboard
 
@@ -74,6 +124,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - Sales analytics with trend analysis
 - User behavior insights and segmentation
 - System performance and health monitoring
+- Event-driven analytics processing
 
 ## 🛠️ Microservices Architecture
 
@@ -91,6 +142,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 
 - **TypeScript**: Full type safety and modern ES modules
 - **Express.js**: RESTful API design with middleware
+- **Controller/Service Pattern**: Professional layered architecture
 - **Prisma ORM**: Type-safe database operations
 - **Docker**: Containerized development and deployment
 
@@ -100,6 +152,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - **RabbitMQ**: Reliable message queuing
 - **Redis**: Real-time caching and session management
 - **Event Sourcing**: Immutable event logs for analytics
+- **Business Events**: Standardized event schemas
 
 ### Database & Search
 
@@ -107,6 +160,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - **Elasticsearch**: Full-text search and analytics
 - **Database Design**: Proper indexing and relationships
 - **Search Optimization**: Relevance scoring and filters
+- **Real-time Indexing**: Automatic sync between PostgreSQL and Elasticsearch
 
 ### DevOps & Monitoring
 
@@ -114,6 +168,7 @@ A real-time e-commerce analytics and notification system built with modern Node.
 - **Health Checks**: Service monitoring and alerts
 - **Logging**: Structured logging with correlation IDs
 - **Performance**: Optimized queries and caching
+- **Event Visibility**: Detailed event logging for debugging
 
 ## 🚦 Quick Start
 
@@ -175,6 +230,31 @@ curl http://localhost:3000/api/v1/products
 - `PUT /api/v1/categories/:id` - Update category
 - `DELETE /api/v1/categories/:id` - Delete category
 
+### Elasticsearch
+
+- `GET /api/v1/elasticsearch/health` - Elasticsearch health check
+- `GET /api/v1/elasticsearch/indices` - List all indices
+- `POST /api/v1/elasticsearch/indices/{indexName}` - Create index
+- `DELETE /api/v1/elasticsearch/indices/{indexName}` - Delete index
+- `GET /api/v1/elasticsearch/indices/{indexName}/stats` - Index statistics
+- `POST /api/v1/elasticsearch/indices/{indexName}/documents` - Index document
+- `GET /api/v1/elasticsearch/indices/{indexName}/documents/{id}` - Get document
+- `PUT /api/v1/elasticsearch/indices/{indexName}/documents/{id}` - Update document
+- `DELETE /api/v1/elasticsearch/indices/{indexName}/documents/{id}` - Delete document
+- `POST /api/v1/elasticsearch/indices/{indexName}/search` - Direct ES search
+
+### Kafka Events
+
+- `GET /api/v1/kafka/health` - Kafka health check
+- `GET /api/v1/kafka/status` - Kafka connection status
+- `POST /api/v1/kafka/publish` - Publish custom events
+- `POST /api/v1/kafka/events/product-created` - Publish product created event
+- `POST /api/v1/kafka/events/product-updated` - Publish product updated event
+- `POST /api/v1/kafka/events/product-deleted` - Publish product deleted event
+- `POST /api/v1/kafka/events/search-analytics` - Publish search analytics event
+- `POST /api/v1/kafka/events/system-health` - Publish system health event
+- `POST /api/v1/kafka/events/performance-metric` - Publish performance metric event
+
 ### Redis Management
 
 - `GET /api/v1/redis/health` - Redis health check
@@ -221,6 +301,7 @@ npm run db:studio    # Open Prisma Studio
 ### Service URLs
 
 - **API Gateway**: http://localhost:3000
+- **API Documentation**: http://localhost:3000/docs
 - **pgAdmin**: http://localhost:5050 (admin@example.com / password)
 - **RabbitMQ Management**: http://localhost:15672 (admin / password)
 - **Elasticsearch**: http://localhost:9200
@@ -233,6 +314,34 @@ npm run db:studio    # Open Prisma Studio
 - **Database**: ecommerce_db
 - **Username**: postgres
 - **Password**: password
+
+## 🏆 Professional Development Skills
+
+This project demonstrates **enterprise-level Node.js development** with:
+
+### Architecture Patterns
+
+- **Controller/Service Pattern**: Clean separation of concerns
+- **Dependency Injection**: Services injected into controllers
+- **Layered Architecture**: HTTP → Controller → Service → Lib
+- **Single Responsibility**: Each class has one job
+- **Interface Segregation**: Clean interfaces for each service
+
+### Code Quality
+
+- **TypeScript**: Strong typing throughout
+- **Async/Await**: Modern async patterns
+- **Error Handling**: Proper error propagation
+- **Validation**: Input validation and sanitization
+- **Documentation**: JSDoc comments for all methods
+
+### Professional Standards
+
+- **Clean Code**: Readable, maintainable structure
+- **Best Practices**: Industry-standard patterns
+- **Scalability**: Easy to extend and maintain
+- **Testability**: Easy to unit test each layer
+- **Production Ready**: Enterprise-level architecture
 
 ## 🤝 Contributing
 

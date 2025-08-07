@@ -11,6 +11,8 @@ import elasticsearchAdminRouter from './routes/search.js';
 import redisRouter from './routes/redis.js';
 import kafkaRouter from './routes/kafka.js';
 import kafkaService from './lib/kafka.js';
+import redisService from './lib/redis.js';
+import elasticsearchService from './lib/elasticsearch.js';
 
 dotenv.config();
 
@@ -66,6 +68,20 @@ const gracefulShutdown = async () => {
     console.error('❌ Error disconnecting Kafka:', error);
   }
 
+  try {
+    await redisService.disconnect();
+    console.log('✅ Redis disconnected');
+  } catch (error) {
+    console.error('❌ Error disconnecting Redis:', error);
+  }
+
+  try {
+    await elasticsearchService.disconnect();
+    console.log('✅ Elasticsearch disconnected');
+  } catch (error) {
+    console.error('❌ Error disconnecting Elasticsearch:', error);
+  }
+
   process.exit(0);
 };
 
@@ -77,6 +93,12 @@ const startServer = async () => {
   try {
     // Connect to Kafka
     await kafkaService.connect();
+
+    // Connect to Redis
+    await redisService.connect();
+
+    // Connect to Elasticsearch
+    await elasticsearchService.connect();
 
     app.listen(PORT, () => {
       console.log(`🚀 API Gateway server running on port ${PORT}`);

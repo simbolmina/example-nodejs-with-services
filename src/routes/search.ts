@@ -1,25 +1,42 @@
 import express from 'express';
 import ElasticsearchController from '../controllers/ElasticsearchController.js';
+import { cacheMiddleware } from '../middleware/cache.js';
 
 const router = express.Router();
 
-// Health check
-router.get('/health', ElasticsearchController.getHealth);
+// Health check (cached for 30 seconds)
+router.get(
+  '/health',
+  cacheMiddleware({ ttl: 30 }),
+  ElasticsearchController.getHealth
+);
 
-// Connection status
-router.get('/status', ElasticsearchController.getConnectionStatus);
+// Get connection status (cached for 30 seconds)
+router.get(
+  '/status',
+  cacheMiddleware({ ttl: 30 }),
+  ElasticsearchController.getConnectionStatus
+);
 
-// Get all indices
-router.get('/indices', ElasticsearchController.getIndices);
+// Get all indices (cached for 1 minute)
+router.get(
+  '/indices',
+  cacheMiddleware({ ttl: 60 }),
+  ElasticsearchController.getIndices
+);
 
-// Create index
+// Create an index
 router.post('/indices/:indexName', ElasticsearchController.createIndex);
 
-// Delete index
+// Delete an index
 router.delete('/indices/:indexName', ElasticsearchController.deleteIndex);
 
-// Get index statistics
-router.get('/indices/:indexName/stats', ElasticsearchController.getIndexStats);
+// Get index statistics (cached for 2 minutes)
+router.get(
+  '/indices/:indexName/stats',
+  cacheMiddleware({ ttl: 120 }),
+  ElasticsearchController.getIndexStats
+);
 
 // Index a document
 router.post(
@@ -27,9 +44,10 @@ router.post(
   ElasticsearchController.indexDocument
 );
 
-// Get a document by ID
+// Get a document by ID (cached for 2 minutes)
 router.get(
   '/indices/:indexName/documents/:documentId',
+  cacheMiddleware({ ttl: 120 }),
   ElasticsearchController.getDocument
 );
 
@@ -45,9 +63,10 @@ router.delete(
   ElasticsearchController.deleteDocument
 );
 
-// Search documents
+// Search documents (cached for 1 minute)
 router.post(
   '/indices/:indexName/search',
+  cacheMiddleware({ ttl: 60 }),
   ElasticsearchController.searchDocuments
 );
 

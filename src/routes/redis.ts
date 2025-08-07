@@ -1,27 +1,19 @@
 import express from 'express';
 import RedisController from '../controllers/RedisController.js';
+import { cacheMiddleware } from '../middleware/cache.js';
 
 const router = express.Router();
 
-// Health check
-router.get('/health', RedisController.getHealth);
+// Health check (cached for 30 seconds)
+router.get('/health', cacheMiddleware({ ttl: 30 }), RedisController.getHealth);
 
-// Connection status
-router.get('/status', RedisController.getConnectionStatus);
+// Get connection status (cached for 30 seconds)
+router.get('/status', cacheMiddleware({ ttl: 30 }), RedisController.getConnectionStatus);
 
-// Get Redis info
-router.get('/info', RedisController.getInfo);
-
-// Get memory usage
-router.get('/memory', RedisController.getMemoryUsage);
-
-// Get all keys
-router.get('/keys', RedisController.getKeys);
-
-// Set a key
+// Set a key-value pair
 router.post('/keys/:key', RedisController.setKey);
 
-// Get a key
+// Get a value by key
 router.get('/keys/:key', RedisController.getKey);
 
 // Delete a key
@@ -33,20 +25,43 @@ router.get('/keys/:key/exists', RedisController.keyExists);
 // Get key TTL
 router.get('/keys/:key/ttl', RedisController.getKeyTTL);
 
-// Set key expiry
+// Set key expiration
 router.post('/keys/:key/expiry', RedisController.setKeyExpiry);
 
-// Hash operations
-router.post('/keys/:key/hash/:field', RedisController.setHashField);
-router.get('/keys/:key/hash/:field', RedisController.getHashField);
-router.delete('/keys/:key/hash/:field', RedisController.deleteHashField);
-router.get('/keys/:key/hash', RedisController.getHashFields);
-router.post('/keys/:key/hash', RedisController.setHashFields);
+// Get all keys matching pattern
+router.get('/keys', RedisController.getKeys);
 
-// List operations
-router.post('/keys/:key/list', RedisController.pushToList);
-router.get('/keys/:key/list/pop', RedisController.popFromList);
-router.get('/keys/:key/list/range', RedisController.getListRange);
-router.get('/keys/:key/list/length', RedisController.getListLength);
+// Get Redis info (cached for 1 minute)
+router.get('/info', cacheMiddleware({ ttl: 60 }), RedisController.getInfo);
+
+// Get memory usage (cached for 1 minute)
+router.get('/memory', cacheMiddleware({ ttl: 60 }), RedisController.getMemoryUsage);
+
+// Set hash field
+router.post('/hash/:key/:field', RedisController.setHashField);
+
+// Get hash field
+router.get('/hash/:key/:field', RedisController.getHashField);
+
+// Get all hash fields
+router.get('/hash/:key', RedisController.getHashFields);
+
+// Delete hash field
+router.delete('/hash/:key/:field', RedisController.deleteHashField);
+
+// Set multiple hash fields
+router.post('/hash/:key', RedisController.setHashFields);
+
+// Push to list
+router.post('/list/:key', RedisController.pushToList);
+
+// Pop from list
+router.get('/list/:key/pop', RedisController.popFromList);
+
+// Get list range
+router.get('/list/:key/range', RedisController.getListRange);
+
+// Get list length
+router.get('/list/:key/length', RedisController.getListLength);
 
 export default router;
