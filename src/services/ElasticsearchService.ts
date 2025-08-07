@@ -19,216 +19,207 @@ export interface SearchData {
   options?: any;
 }
 
-class ElasticsearchAdminService {
-  /**
-   * Get Elasticsearch health status
-   */
-  async getHealth() {
-    try {
-      const health = await elasticsearchService.healthCheck();
-      return {
-        status: 'healthy',
-        cluster: health.cluster_name,
-        version: health.version?.number,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  /**
-   * Get connection status
-   */
-  async getConnectionStatus() {
-    const isConnected = elasticsearchService.isConnected();
+/**
+ * Get Elasticsearch health status
+ */
+export const getHealth = async () => {
+  try {
+    const health = await elasticsearchService.healthCheck();
     return {
-      connected: isConnected,
+      status: 'healthy',
+      cluster: health.cluster_name,
+      version: health.version?.number,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString(),
     };
   }
+};
 
-  /**
-   * Create an index
-   */
-  async createIndex(indexName: string, data: CreateIndexData = {}) {
-    const { mappings, settings } = data;
+/**
+ * Get connection status
+ */
+export const getConnectionStatus = async () => {
+  const isConnected = elasticsearchService.isConnected();
+  return {
+    connected: isConnected,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    const result = await elasticsearchService.createIndex(indexName, {
-      mappings,
-      settings,
-    });
+/**
+ * Create an index
+ */
+export const createIndex = async (
+  indexName: string,
+  data: CreateIndexData = {}
+) => {
+  const { mappings, settings } = data;
 
-    return {
-      message: `Index '${indexName}' created successfully`,
-      index: indexName,
-      result,
-    };
+  const result = await elasticsearchService.createIndex(indexName, {
+    mappings,
+    settings,
+  });
+
+  return {
+    message: `Index '${indexName}' created successfully`,
+    index: indexName,
+    result,
+  };
+};
+
+/**
+ * Delete an index
+ */
+export const deleteIndex = async (indexName: string) => {
+  const result = await elasticsearchService.deleteIndex(indexName);
+
+  return {
+    message: `Index '${indexName}' deleted successfully`,
+    index: indexName,
+    result,
+  };
+};
+
+/**
+ * Get all indices
+ */
+export const getIndices = async () => {
+  const indices = await elasticsearchService.getIndices();
+  return {
+    indices: Object.keys(indices),
+    count: Object.keys(indices).length,
+  };
+};
+
+/**
+ * Get index statistics
+ */
+export const getIndexStats = async (indexName: string) => {
+  const stats = await elasticsearchService.getIndexStats(indexName);
+
+  return {
+    index: indexName,
+    stats,
+  };
+};
+
+/**
+ * Index a document
+ */
+export const indexDocument = async (
+  indexName: string,
+  data: IndexDocumentData
+) => {
+  const { document, id } = data;
+
+  const result = await elasticsearchService.indexDocument(indexName, {
+    id,
+    document,
+  });
+
+  return {
+    message: `Document indexed successfully in '${indexName}'`,
+    index: indexName,
+    id: result._id,
+    result,
+  };
+};
+
+/**
+ * Get a document
+ */
+export const getDocument = async (indexName: string, documentId: string) => {
+  const result = await elasticsearchService.getDocument(indexName, documentId);
+
+  if (!result.found) {
+    throw new Error(
+      `Document '${documentId}' not found in index '${indexName}'`
+    );
   }
 
-  /**
-   * Delete an index
-   */
-  async deleteIndex(indexName: string) {
-    const result = await elasticsearchService.deleteIndex(indexName);
+  return {
+    index: indexName,
+    id: documentId,
+    document: result._source,
+    version: result._version,
+  };
+};
 
-    return {
-      message: `Index '${indexName}' deleted successfully`,
-      index: indexName,
-      result,
-    };
-  }
+/**
+ * Update a document
+ */
+export const updateDocument = async (
+  indexName: string,
+  documentId: string,
+  data: UpdateDocumentData
+) => {
+  const { document } = data;
 
-  /**
-   * Get all indices
-   */
-  async getIndices() {
-    const indices = await elasticsearchService.getIndices();
-    return {
-      indices: Object.keys(indices),
-      count: Object.keys(indices).length,
-    };
-  }
-
-  /**
-   * Get index statistics
-   */
-  async getIndexStats(indexName: string) {
-    const stats = await elasticsearchService.getIndexStats(indexName);
-    return {
-      index: indexName,
-      stats,
-    };
-  }
-
-  /**
-   * Index a document
-   */
-  async indexDocument(indexName: string, data: IndexDocumentData) {
-    const { document, id } = data;
-
-    const result = await elasticsearchService.indexDocument(
-      indexName,
+  const result = await elasticsearchService.updateDocument(
+    indexName,
+    documentId,
+    {
       document,
-      id
-    );
-
-    return {
-      message: `Document indexed successfully in '${indexName}'`,
-      index: indexName,
-      id: result._id,
-      result,
-    };
-  }
-
-  /**
-   * Get a document by ID
-   */
-  async getDocument(indexName: string, documentId: string) {
-    const document = await elasticsearchService.getDocument(
-      indexName,
-      documentId
-    );
-
-    if (!document || !document._source) {
-      throw new Error(`Document not found in index '${indexName}'`);
     }
+  );
 
-    return {
-      index: indexName,
-      id: documentId,
-      document: document._source,
-      metadata: {
-        _index: document._index,
-        _id: document._id,
-        _version: document._version,
-      },
-    };
-  }
+  return {
+    message: `Document '${documentId}' updated successfully in '${indexName}'`,
+    index: indexName,
+    id: documentId,
+    result,
+  };
+};
 
-  /**
-   * Update a document
-   */
-  async updateDocument(
-    indexName: string,
-    documentId: string,
-    data: UpdateDocumentData
-  ) {
-    const { document } = data;
+/**
+ * Delete a document
+ */
+export const deleteDocument = async (indexName: string, documentId: string) => {
+  const result = await elasticsearchService.deleteDocument(
+    indexName,
+    documentId
+  );
 
-    const result = await elasticsearchService.updateDocument(
-      indexName,
-      documentId,
-      document
-    );
+  return {
+    message: `Document '${documentId}' deleted successfully from '${indexName}'`,
+    index: indexName,
+    id: documentId,
+    result,
+  };
+};
 
-    return {
-      message: `Document updated successfully in '${indexName}'`,
-      index: indexName,
-      id: documentId,
-      result,
-    };
-  }
+/**
+ * Search documents
+ */
+export const searchDocuments = async (indexName: string, data: SearchData) => {
+  const { query, options } = data;
 
-  /**
-   * Delete a document
-   */
-  async deleteDocument(indexName: string, documentId: string) {
-    const result = await elasticsearchService.deleteDocument(
-      indexName,
-      documentId
-    );
+  const result = await elasticsearchService.search(indexName, query, options);
 
-    return {
-      message: `Document deleted successfully from '${indexName}'`,
-      index: indexName,
-      id: documentId,
-      result,
-    };
-  }
+  return {
+    index: indexName,
+    query,
+    total: result.hits.total.value,
+    hits: result.hits.hits,
+    aggregations: result.aggregations,
+  };
+};
 
-  /**
-   * Search documents
-   */
-  async searchDocuments(indexName: string, data: SearchData) {
-    const { query, options = {} } = data;
+/**
+ * Bulk index documents
+ */
+export const bulkIndex = async (indexName: string, documents: any[]) => {
+  const result = await elasticsearchService.bulkIndex(indexName, documents);
 
-    const result = await elasticsearchService.search(indexName, query, options);
-
-    return {
-      index: indexName,
-      total: result.hits.total.value,
-      hits: result.hits.hits.map((hit: any) => ({
-        id: hit._id,
-        score: hit._score,
-        source: hit._source,
-      })),
-      aggregations: result.aggregations,
-    };
-  }
-
-  /**
-   * Bulk index documents
-   */
-  async bulkIndex(indexName: string, documents: any[]) {
-    const operations = documents.flatMap((doc: any) => [
-      { index: { _index: indexName, _id: doc.id } },
-      doc,
-    ]);
-
-    const result = await elasticsearchService.bulkIndex(operations);
-
-    return {
-      message: `Bulk indexed ${documents.length} documents in '${indexName}'`,
-      index: indexName,
-      total: documents.length,
-      result,
-    };
-  }
-}
-
-export default new ElasticsearchAdminService();
+  return {
+    message: `Bulk indexed ${documents.length} documents in '${indexName}'`,
+    index: indexName,
+    count: documents.length,
+    result,
+  };
+};

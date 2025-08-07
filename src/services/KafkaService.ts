@@ -1,4 +1,4 @@
-import kafkaService from '../lib/kafka.js';
+import kafkaService, { EventSchema } from '../lib/kafka.js';
 
 export interface PublishEventData {
   topic: string;
@@ -28,160 +28,159 @@ export interface PerformanceMetricData {
   tags?: any;
 }
 
-class KafkaAdminService {
-  /**
-   * Get Kafka health status
-   */
-  async getHealth() {
-    try {
-      const health = await kafkaService.healthCheck();
-      return {
-        status: 'healthy',
-        connected: kafkaService.isConnected(),
-        health,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        connected: kafkaService.isConnected(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  /**
-   * Get connection status
-   */
-  async getConnectionStatus() {
-    const isConnected = kafkaService.isConnected();
+/**
+ * Get Kafka health status
+ */
+export const getHealth = async () => {
+  try {
+    const health = await kafkaService.healthCheck();
     return {
-      connected: isConnected,
+      status: 'healthy',
+      connected: kafkaService.isConnected(),
+      health,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      connected: kafkaService.isConnected(),
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString(),
     };
   }
+};
 
-  /**
-   * Publish a custom event
-   */
-  async publishCustomEvent(data: PublishEventData) {
-    const { topic, eventType, data: eventData, metadata } = data;
+/**
+ * Get connection status
+ */
+export const getConnectionStatus = async () => {
+  const isConnected = kafkaService.isConnected();
+  return {
+    connected: isConnected,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    const event = {
-      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: eventType,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: eventData,
-      metadata: metadata || {},
-    };
+/**
+ * Publish a custom event
+ */
+export const publishCustomEvent = async (data: PublishEventData) => {
+  const { topic, eventType, data: eventData, metadata } = data;
 
-    await kafkaService.publishEvent(topic, event);
+  const event = {
+    id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type: eventType,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: eventData,
+    metadata: metadata || {},
+  };
 
-    return {
-      message: 'Event published successfully',
-      eventId: event.id,
-      topic,
-      eventType,
-      timestamp: event.timestamp,
-    };
-  }
+  await kafkaService.publishEvent(topic, event as EventSchema);
 
-  /**
-   * Publish product created event
-   */
-  async publishProductCreatedEvent(data: ProductEventData) {
-    const { product } = data;
+  return {
+    message: 'Event published successfully',
+    eventId: event.id,
+    topic,
+    eventType,
+    timestamp: event.timestamp,
+  };
+};
 
-    await kafkaService.publishProductCreated(product);
+/**
+ * Publish product created event
+ */
+export const publishProductCreatedEvent = async (data: ProductEventData) => {
+  const { product } = data;
 
-    return {
-      message: 'Product created event published successfully',
-      productId: product.id,
-      productName: product.name,
-      timestamp: new Date().toISOString(),
-    };
-  }
+  await kafkaService.publishProductCreated(product);
 
-  /**
-   * Publish product updated event
-   */
-  async publishProductUpdatedEvent(data: ProductEventData) {
-    const { product, changes } = data;
+  return {
+    message: 'Product created event published successfully',
+    productId: product.id,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    await kafkaService.publishProductUpdated(product, changes || {});
+/**
+ * Publish product updated event
+ */
+export const publishProductUpdatedEvent = async (data: ProductEventData) => {
+  const { product, changes } = data;
 
-    return {
-      message: 'Product updated event published successfully',
-      productId: product.id,
-      productName: product.name,
-      changes,
-      timestamp: new Date().toISOString(),
-    };
-  }
+  await kafkaService.publishProductUpdated(product, changes);
 
-  /**
-   * Publish product deleted event
-   */
-  async publishProductDeletedEvent(productId: string) {
-    await kafkaService.publishProductDeleted(productId);
+  return {
+    message: 'Product updated event published successfully',
+    productId: product.id,
+    changes,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    return {
-      message: 'Product deleted event published successfully',
-      productId,
-      timestamp: new Date().toISOString(),
-    };
-  }
+/**
+ * Publish product deleted event
+ */
+export const publishProductDeletedEvent = async (productId: string) => {
+  await kafkaService.publishProductDeleted(productId);
 
-  /**
-   * Publish search analytics event
-   */
-  async publishSearchAnalyticsEvent(data: SearchAnalyticsData) {
-    const { query, results = [], filters = {} } = data;
+  return {
+    message: 'Product deleted event published successfully',
+    productId,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    await kafkaService.publishSearchAnalytics(query, results, filters);
+/**
+ * Publish search analytics event
+ */
+export const publishSearchAnalyticsEvent = async (
+  data: SearchAnalyticsData
+) => {
+  const { query, results, filters } = data;
 
-    return {
-      message: 'Search analytics event published successfully',
-      query,
-      resultCount: results.length,
-      filters,
-      timestamp: new Date().toISOString(),
-    };
-  }
+  await kafkaService.publishSearchAnalytics(query, results || [], filters);
 
-  /**
-   * Publish system health event
-   */
-  async publishSystemHealthEvent(data: SystemHealthData) {
-    const { healthData = {} } = data;
+  return {
+    message: 'Search analytics event published successfully',
+    query,
+    resultsCount: results?.length || 0,
+    filters,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    await kafkaService.publishSystemHealth(healthData);
+/**
+ * Publish system health event
+ */
+export const publishSystemHealthEvent = async (data: SystemHealthData) => {
+  const { healthData } = data;
 
-    return {
-      message: 'System health event published successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
+  await kafkaService.publishSystemHealth(healthData);
 
-  /**
-   * Publish performance metric event
-   */
-  async publishPerformanceMetricEvent(data: PerformanceMetricData) {
-    const { metric, value, tags = {} } = data;
+  return {
+    message: 'System health event published successfully',
+    healthData,
+    timestamp: new Date().toISOString(),
+  };
+};
 
-    await kafkaService.publishPerformanceMetric(metric, value, tags);
+/**
+ * Publish performance metric event
+ */
+export const publishPerformanceMetricEvent = async (
+  data: PerformanceMetricData
+) => {
+  const { metric, value, tags } = data;
 
-    return {
-      message: 'Performance metric event published successfully',
-      metric,
-      value,
-      tags,
-      timestamp: new Date().toISOString(),
-    };
-  }
-}
+  await kafkaService.publishPerformanceMetric(metric, value, tags);
 
-export default new KafkaAdminService();
+  return {
+    message: 'Performance metric event published successfully',
+    metric,
+    value,
+    tags,
+    timestamp: new Date().toISOString(),
+  };
+};

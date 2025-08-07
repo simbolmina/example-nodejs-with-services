@@ -1,5 +1,13 @@
 import express from 'express';
-import ProductController from '../controllers/ProductController.js';
+import {
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  searchProducts,
+  getProductDetails,
+} from '../controllers/ProductController.js';
 import {
   cacheMiddleware,
   invalidateCache,
@@ -19,48 +27,28 @@ const productRateLimit = rateLimitRedis({
 router.use(productRateLimit);
 
 // Get all products (cached for 2 minutes)
-router.get('/', cacheMiddleware({ ttl: 120 }), ProductController.getProducts);
+router.get('/', cacheMiddleware({ ttl: 120 }), getProducts);
 
 // Get product by ID (cached for 5 minutes)
-router.get(
-  '/:id',
-  cacheMiddleware({ ttl: 300 }),
-  ProductController.getProductById
-);
+router.get('/:id', cacheMiddleware({ ttl: 300 }), getProductById);
 
 // Create product (invalidates product cache)
-router.post(
-  '/',
-  invalidateCache('cache:/api/v1/products*'),
-  ProductController.createProduct
-);
+router.post('/', invalidateCache('cache:/api/v1/products*'), createProduct);
 
 // Update product (invalidates product cache)
-router.put(
-  '/:id',
-  invalidateCache('cache:/api/v1/products*'),
-  ProductController.updateProduct
-);
+router.put('/:id', invalidateCache('cache:/api/v1/products*'), updateProduct);
 
 // Delete product (invalidates product cache)
 router.delete(
   '/:id',
   invalidateCache('cache:/api/v1/products*'),
-  ProductController.deleteProduct
+  deleteProduct
 );
 
 // Search products (cached for 1 minute due to dynamic nature)
-router.get(
-  '/search',
-  cacheMiddleware({ ttl: 60 }),
-  ProductController.searchProducts
-);
+router.get('/search', cacheMiddleware({ ttl: 60 }), searchProducts);
 
 // Get product details from Elasticsearch (cached for 3 minutes)
-router.get(
-  '/:id/details',
-  cacheMiddleware({ ttl: 180 }),
-  ProductController.getProductDetails
-);
+router.get('/:id/details', cacheMiddleware({ ttl: 180 }), getProductDetails);
 
 export default router;

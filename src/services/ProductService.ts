@@ -46,379 +46,353 @@ export interface SearchFilters {
   limit?: number;
 }
 
-class ProductService {
-  private prisma: PrismaClient;
+const prisma = new PrismaClient();
 
-  constructor() {
-    this.prisma = new PrismaClient();
+/**
+ * Get all products with pagination and filtering
+ */
+export const getProducts = async (filters: ProductFilters = {}) => {
+  const { page = 1, limit = 10, categoryId } = filters;
+  const offset = (page - 1) * limit;
+
+  const where: any = { isActive: true };
+  if (categoryId) {
+    where.categoryId = categoryId;
   }
 
-  /**
-   * Get all products with pagination and filtering
-   */
-  async getProducts(filters: ProductFilters = {}) {
-    const { page = 1, limit = 10, categoryId } = filters;
-    const offset = (page - 1) * limit;
-
-    const where: any = { isActive: true };
-    if (categoryId) {
-      where.categoryId = categoryId;
-    }
-
-    const [products, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        include: {
-          category: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit,
-      }),
-      this.prisma.product.count({ where }),
-    ]);
-
-    const pages = Math.ceil(total / limit);
-
-    return {
-      products,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages,
-      },
-    };
-  }
-
-  /**
-   * Get product by ID
-   */
-  async getProductById(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
       include: {
         category: true,
       },
-    });
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.product.count({ where }),
+  ]);
 
-    if (!product) {
-      throw new Error('Product not found');
-    }
+  const pages = Math.ceil(total / limit);
 
-    return product;
+  return {
+    products,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages,
+    },
+  };
+};
+
+/**
+ * Get product by ID
+ */
+export const getProductById = async (id: string) => {
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      category: true,
+    },
+  });
+
+  if (!product) {
+    throw new Error('Product not found');
   }
 
-  /**
-   * Create a new product
-   */
-  async createProduct(data: CreateProductData) {
-    const product = await this.prisma.product.create({
-      data,
-      include: {
-        category: true,
-      },
-    });
+  return product;
+};
 
-    // Index in Elasticsearch
-    await this.indexProductInElasticsearch(product);
+/**
+ * Create a new product
+ */
+export const createProduct = async (data: CreateProductData) => {
+  const product = await prisma.product.create({
+    data,
+    include: {
+      category: true,
+    },
+  });
 
-    // Publish events
-    await this.publishProductEvents(product, 'created');
+  // Index product in Elasticsearch
+  await indexProductInElasticsearch(product);
 
-    return product;
+  // Publish product created event
+  await publishProductEvents(product, 'created');
+
+  return product;
+};
+
+/**
+ * Update a product
+ */
+export const updateProduct = async (id: string, data: UpdateProductData) => {
+  const existingProduct = await prisma.product.findUnique({
+    where: { id },
+  });
+
+  if (!existingProduct) {
+    throw new Error('Product not found');
   }
 
-  /**
-   * Update a product
-   */
-  async updateProduct(id: string, data: UpdateProductData) {
-    // Get the original product to track changes
-    const originalProduct = await this.prisma.product.findUnique({
-      where: { id },
-      include: { category: true },
-    });
+  const product = await prisma.product.update({
+    where: { id },
+    data,
+    include: {
+      category: true,
+    },
+  });
 
-    if (!originalProduct) {
-      throw new Error('Product not found');
-    }
+  // Update product in Elasticsearch
+  await indexProductInElasticsearch(product);
 
-    const product = await this.prisma.product.update({
-      where: { id },
-      data,
-      include: {
-        category: true,
-      },
-    });
+  // Get changes for event
+  const changes = getProductChanges(existingProduct, product);
 
-    // Re-index in Elasticsearch
-    await this.indexProductInElasticsearch(product);
+  // Publish product updated event
+  await publishProductEvents(product, 'updated', changes);
 
-    // Publish events with changes
-    const changes = this.getProductChanges(originalProduct, product);
-    await this.publishProductEvents(product, 'updated', changes);
+  return product;
+};
 
-    return product;
+/**
+ * Delete a product (soft delete)
+ */
+export const deleteProduct = async (id: string) => {
+  const product = await prisma.product.findUnique({
+    where: { id },
+  });
+
+  if (!product) {
+    throw new Error('Product not found');
   }
 
-  /**
-   * Soft delete a product
-   */
-  async deleteProduct(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-    });
+  await prisma.product.update({
+    where: { id },
+    data: { isActive: false },
+  });
 
-    if (!product) {
-      throw new Error('Product not found');
-    }
+  // Remove product from Elasticsearch
+  await removeProductFromElasticsearch(id);
 
-    // Soft delete
-    await this.prisma.product.update({
-      where: { id },
-      data: { isActive: false },
-    });
+  // Publish product deleted event
+  await publishProductEvents(product, 'deleted');
 
-    // Remove from Elasticsearch
-    await this.removeProductFromElasticsearch(id);
+  return { message: 'Product deleted successfully' };
+};
 
-    // Publish events
-    await this.publishProductEvents({ id }, 'deleted');
+/**
+ * Search products using Elasticsearch
+ */
+export const searchProducts = async (filters: SearchFilters) => {
+  const {
+    q,
+    category,
+    minPrice,
+    maxPrice,
+    inStock,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    page = 1,
+    limit = 10,
+  } = filters;
 
-    return { message: 'Product deleted successfully' };
-  }
-
-  /**
-   * Search products using Elasticsearch
-   */
-  async searchProducts(filters: SearchFilters) {
-    const {
-      q,
-      category,
-      minPrice,
-      maxPrice,
-      inStock,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-      page = 1,
-      limit = 10,
-    } = filters;
-
-    const offset = (parseInt(page.toString()) - 1) * parseInt(limit.toString());
-
-    // Build search query
-    const query: any = {
+  const searchQuery: any = {
+    query: {
       bool: {
         must: [
           {
             multi_match: {
               query: q,
-              fields: ['name^2', 'description', 'tags'],
+              fields: ['name^2', 'description', 'sku', 'tags'],
               fuzziness: 'AUTO',
-              minimum_should_match: '75%',
             },
           },
         ],
         filter: [],
       },
-    };
+    },
+    sort: [{ [sortBy]: { order: sortOrder } }],
+    from: (page - 1) * limit,
+    size: limit,
+  };
 
-    // Add filters
-    if (category) {
-      query.bool.filter.push({
-        term: { categoryName: category },
-      });
-    }
+  // Add filters
+  if (category) {
+    searchQuery.query.bool.filter.push({
+      term: { 'category.name': category },
+    });
+  }
 
-    if (minPrice || maxPrice) {
-      const range: any = {};
-      if (minPrice) range.gte = minPrice;
-      if (maxPrice) range.lte = maxPrice;
-      query.bool.filter.push({ range: { price: range } });
-    }
+  if (minPrice !== undefined) {
+    searchQuery.query.bool.filter.push({
+      range: { price: { gte: minPrice } },
+    });
+  }
 
-    if (inStock !== undefined) {
-      if (inStock === true) {
-        query.bool.filter.push({ range: { inventoryCount: { gt: 0 } } });
-      } else {
-        query.bool.filter.push({ term: { inventoryCount: 0 } });
-      }
-    }
+  if (maxPrice !== undefined) {
+    searchQuery.query.bool.filter.push({
+      range: { price: { lte: maxPrice } },
+    });
+  }
 
-    // Build search options
-    const searchOptions: any = {
-      query,
-      size: parseInt(limit.toString()),
-      from: offset,
-      sort: [{ [sortBy]: sortOrder }],
-      aggs: {
-        categories: {
-          terms: { field: 'categoryName' },
-        },
-        inventory_status: {
-          terms: { field: 'inventoryCount' },
-        },
-      },
-    };
+  if (inStock !== undefined) {
+    searchQuery.query.bool.filter.push({
+      term: { inStock: inStock },
+    });
+  }
 
-    const result = await elasticsearchService.search(
-      'products',
-      query,
-      searchOptions
-    );
+  const result = await elasticsearchService.search('products', searchQuery);
 
-    // Format results
-    const products = result.hits.hits.map((hit: any) => ({
+  // Publish search analytics
+  await publishSearchAnalytics(q, result.hits.hits, filters);
+
+  return {
+    products: result.hits.hits.map((hit: any) => ({
       ...hit._source,
       score: hit._score,
-    }));
-
-    // Publish search analytics
-    await this.publishSearchAnalytics(q, products, {
-      category,
-      minPrice,
-      maxPrice,
-      inStock,
-    });
-
-    return {
-      products,
+    })),
+    total: result.hits.total.value,
+    pagination: {
+      page,
+      limit,
       total: result.hits.total.value,
-      page: parseInt(page.toString()),
-      limit: parseInt(limit.toString()),
-      aggregations: result.aggregations,
+      pages: Math.ceil(result.hits.total.value / limit),
+    },
+  };
+};
+
+/**
+ * Get product details from Elasticsearch
+ */
+export const getProductDetails = async (id: string) => {
+  const result = await elasticsearchService.getDocument('products', id);
+
+  if (!result.found) {
+    throw new Error('Product not found in Elasticsearch');
+  }
+
+  return {
+    ...result._source,
+    score: result._score,
+  };
+};
+
+/**
+ * Track product view
+ */
+export const trackProductView = async (id: string, metadata?: any) => {
+  // In a real application, you might want to track this in a separate service
+  // For now, we'll just log it
+  console.log(`Product view tracked: ${id}`, metadata);
+};
+
+/**
+ * Index product in Elasticsearch
+ */
+const indexProductInElasticsearch = async (product: any) => {
+  try {
+    const document = {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: parseFloat(product.price),
+      sku: product.sku,
+      category: {
+        id: product.category.id,
+        name: product.category.name,
+      },
+      inventoryCount: product.inventoryCount,
+      inStock: product.inventoryCount > 0,
+      weight: product.weight,
+      dimensions: product.dimensions,
+      images: product.images,
+      tags: product.tags,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
     };
-  }
 
-  /**
-   * Get product details from Elasticsearch
-   */
-  async getProductDetails(id: string) {
-    const product = await elasticsearchService.getDocument('products', id);
-
-    if (!product || !product._source) {
-      throw new Error('Product not found in Elasticsearch');
-    }
-
-    return {
-      product: product._source,
-    };
-  }
-
-  /**
-   * Track product view
-   */
-  async trackProductView(id: string, metadata?: any) {
-    await kafkaService.publishProductViewed(id, metadata);
-  }
-
-  /**
-   * Index product in Elasticsearch
-   */
-  private async indexProductInElasticsearch(product: any) {
-    try {
-      const category = await this.prisma.category.findUnique({
-        where: { id: product.categoryId },
-      });
-
-      const document = {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        price: parseFloat(product.price),
-        categoryId: product.categoryId,
-        categoryName: category?.name || 'Unknown',
-        inventoryCount: product.inventoryCount,
-        sku: product.sku,
-        weight: product.weight,
-        dimensions: product.dimensions,
-        images: product.images || [],
-        tags: product.tags || [],
-        isActive: product.isActive,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-      };
-
-      await elasticsearchService.indexDocument(
-        'products',
-        document,
-        product.id
-      );
-      console.log(`✅ Indexed product ${product.name} in Elasticsearch`);
-    } catch (error) {
-      console.error('❌ Error indexing product in Elasticsearch:', error);
-    }
-  }
-
-  /**
-   * Remove product from Elasticsearch
-   */
-  private async removeProductFromElasticsearch(productId: string) {
-    try {
-      await elasticsearchService.deleteDocument('products', productId);
-      console.log(`✅ Removed product ${productId} from Elasticsearch`);
-    } catch (error) {
-      console.error('❌ Error removing product from Elasticsearch:', error);
-    }
-  }
-
-  /**
-   * Publish product events
-   */
-  private async publishProductEvents(
-    product: any,
-    eventType: 'created' | 'updated' | 'deleted',
-    changes?: any
-  ) {
-    try {
-      switch (eventType) {
-        case 'created':
-          await kafkaService.publishProductCreated(product);
-          await kafkaService.publishLowStockAlert(product);
-          break;
-        case 'updated':
-          await kafkaService.publishProductUpdated(product, changes || {});
-          await kafkaService.publishLowStockAlert(product);
-          break;
-        case 'deleted':
-          await kafkaService.publishProductDeleted(product.id);
-          break;
-      }
-    } catch (error) {
-      console.error(`❌ Error publishing product ${eventType} event:`, error);
-    }
-  }
-
-  /**
-   * Publish search analytics
-   */
-  private async publishSearchAnalytics(
-    query: string,
-    results: any[],
-    filters: any = {}
-  ) {
-    try {
-      await kafkaService.publishSearchAnalytics(query, results, filters);
-    } catch (error) {
-      console.error('❌ Error publishing search analytics:', error);
-    }
-  }
-
-  /**
-   * Get changes between original and updated product
-   */
-  private getProductChanges(original: any, updated: any) {
-    const changes: any = {};
-    Object.keys(updated).forEach((key) => {
-      if (original[key] !== updated[key]) {
-        changes[key] = {
-          from: original[key],
-          to: updated[key],
-        };
-      }
+    await elasticsearchService.indexDocument('products', {
+      id: product.id,
+      document,
     });
-    return changes;
+  } catch (error) {
+    console.error('❌ Error indexing product in Elasticsearch:', error);
   }
-}
+};
 
-export default new ProductService();
+/**
+ * Remove product from Elasticsearch
+ */
+const removeProductFromElasticsearch = async (productId: string) => {
+  try {
+    await elasticsearchService.deleteDocument('products', productId);
+  } catch (error) {
+    console.error('❌ Error removing product from Elasticsearch:', error);
+  }
+};
+
+/**
+ * Publish product events to Kafka
+ */
+const publishProductEvents = async (
+  product: any,
+  eventType: 'created' | 'updated' | 'deleted',
+  changes?: any
+) => {
+  try {
+    const eventData = {
+      product,
+      changes,
+      timestamp: new Date().toISOString(),
+    };
+
+    switch (eventType) {
+      case 'created':
+        await kafkaService.publishProductCreated(eventData);
+        break;
+      case 'updated':
+        await kafkaService.publishProductUpdated(eventData, changes);
+        break;
+      case 'deleted':
+        await kafkaService.publishProductDeleted(product.id);
+        break;
+    }
+  } catch (error) {
+    console.error(`❌ Error publishing product ${eventType} event:`, error);
+  }
+};
+
+/**
+ * Publish search analytics to Kafka
+ */
+const publishSearchAnalytics = async (
+  query: string,
+  results: any[],
+  filters: any = {}
+) => {
+  try {
+    await kafkaService.publishSearchAnalytics(query, results, filters);
+  } catch (error) {
+    console.error('❌ Error publishing search analytics:', error);
+  }
+};
+
+/**
+ * Get product changes for event tracking
+ */
+const getProductChanges = (original: any, updated: any) => {
+  const changes: any = {};
+
+  Object.keys(updated).forEach((key) => {
+    if (original[key] !== updated[key]) {
+      changes[key] = {
+        from: original[key],
+        to: updated[key],
+      };
+    }
+  });
+
+  return changes;
+};

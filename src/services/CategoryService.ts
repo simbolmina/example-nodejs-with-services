@@ -12,137 +12,129 @@ export interface UpdateCategoryData {
   parentId?: string;
 }
 
-class CategoryService {
-  private prisma: PrismaClient;
+const prisma = new PrismaClient();
 
-  constructor() {
-    this.prisma = new PrismaClient();
+/**
+ * Get all categories
+ */
+export const getCategories = async () => {
+  const categories = await prisma.category.findMany({
+    include: {
+      parent: true,
+      children: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  return categories;
+};
+
+/**
+ * Get category by ID
+ */
+export const getCategoryById = async (id: string) => {
+  const category = await prisma.category.findUnique({
+    where: { id },
+    include: {
+      parent: true,
+      children: true,
+    },
+  });
+
+  if (!category) {
+    throw new Error('Category not found');
   }
 
-  /**
-   * Get all categories
-   */
-  async getCategories() {
-    const categories = await this.prisma.category.findMany({
-      include: {
-        parent: true,
-        children: true,
-      },
-      orderBy: { name: 'asc' },
-    });
+  return category;
+};
 
-    return categories;
+/**
+ * Create a new category
+ */
+export const createCategory = async (data: CreateCategoryData) => {
+  const category = await prisma.category.create({
+    data,
+    include: {
+      parent: true,
+      children: true,
+    },
+  });
+
+  return category;
+};
+
+/**
+ * Update a category
+ */
+export const updateCategory = async (id: string, data: UpdateCategoryData) => {
+  const category = await prisma.category.findUnique({
+    where: { id },
+  });
+
+  if (!category) {
+    throw new Error('Category not found');
   }
 
-  /**
-   * Get category by ID
-   */
-  async getCategoryById(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
-        parent: true,
-        children: true,
-      },
-    });
+  const updatedCategory = await prisma.category.update({
+    where: { id },
+    data,
+    include: {
+      parent: true,
+      children: true,
+    },
+  });
 
-    if (!category) {
-      throw new Error('Category not found');
-    }
+  return updatedCategory;
+};
 
-    return category;
+/**
+ * Delete a category
+ */
+export const deleteCategory = async (id: string) => {
+  const category = await prisma.category.findUnique({
+    where: { id },
+    include: {
+      children: true,
+      products: true,
+    },
+  });
+
+  if (!category) {
+    throw new Error('Category not found');
   }
 
-  /**
-   * Create a new category
-   */
-  async createCategory(data: CreateCategoryData) {
-    const category = await this.prisma.category.create({
-      data,
-      include: {
-        parent: true,
-        children: true,
-      },
-    });
-
-    return category;
+  // Check if category has children
+  if (category.children.length > 0) {
+    throw new Error('Cannot delete category with subcategories');
   }
 
-  /**
-   * Update a category
-   */
-  async updateCategory(id: string, data: UpdateCategoryData) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-    });
-
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    const updatedCategory = await this.prisma.category.update({
-      where: { id },
-      data,
-      include: {
-        parent: true,
-        children: true,
-      },
-    });
-
-    return updatedCategory;
+  // Check if category has products
+  if (category.products.length > 0) {
+    throw new Error('Cannot delete category with products');
   }
 
-  /**
-   * Delete a category
-   */
-  async deleteCategory(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
-        children: true,
-        products: true,
-      },
-    });
+  await prisma.category.delete({
+    where: { id },
+  });
 
-    if (!category) {
-      throw new Error('Category not found');
-    }
+  return { message: 'Category deleted successfully' };
+};
 
-    // Check if category has children
-    if (category.children.length > 0) {
-      throw new Error('Cannot delete category with subcategories');
-    }
-
-    // Check if category has products
-    if (category.products.length > 0) {
-      throw new Error('Cannot delete category with products');
-    }
-
-    await this.prisma.category.delete({
-      where: { id },
-    });
-
-    return { message: 'Category deleted successfully' };
-  }
-
-  /**
-   * Get category hierarchy
-   */
-  async getCategoryHierarchy() {
-    const categories = await this.prisma.category.findMany({
-      where: { parentId: null },
-      include: {
-        children: {
-          include: {
-            children: true,
-          },
+/**
+ * Get category hierarchy
+ */
+export const getCategoryHierarchy = async () => {
+  const categories = await prisma.category.findMany({
+    where: { parentId: null },
+    include: {
+      children: {
+        include: {
+          children: true,
         },
       },
-      orderBy: { name: 'asc' },
-    });
+    },
+    orderBy: { name: 'asc' },
+  });
 
-    return categories;
-  }
-}
-
-export default new CategoryService();
+  return categories;
+};

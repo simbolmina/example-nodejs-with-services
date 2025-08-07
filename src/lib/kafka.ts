@@ -43,334 +43,376 @@ export interface EventSchema {
   };
 }
 
-class KafkaService {
-  private kafka: Kafka;
-  private producer: Producer;
-  private consumer: Consumer;
-  private connected: boolean = false;
+let kafka: Kafka;
+let producer: Producer;
+let consumer: Consumer;
+let connected: boolean = false;
 
-  constructor() {
-    this.kafka = new Kafka({
-      clientId: 'ecommerce-api-gateway',
-      brokers: [process.env.KAFKA_BROKER || 'kafka:9092'],
-      retry: {
-        initialRetryTime: 100,
-        retries: 8,
-      },
-    });
+export const initialize = () => {
+  kafka = new Kafka({
+    clientId: 'ecommerce-api-gateway',
+    brokers: [process.env.KAFKA_BROKER || 'kafka:9092'],
+    retry: {
+      initialRetryTime: 100,
+      retries: 8,
+    },
+  });
 
-    // Use legacy partitioner to avoid warning and maintain consistent behavior
-    this.producer = this.kafka.producer({
-      createPartitioner: Partitioners.LegacyPartitioner,
-    });
-    this.consumer = this.kafka.consumer({ groupId: 'api-gateway-consumer' });
-  }
+  // Use legacy partitioner to avoid warning and maintain consistent behavior
+  producer = kafka.producer({
+    createPartitioner: Partitioners.LegacyPartitioner,
+  });
+  consumer = kafka.consumer({ groupId: 'api-gateway-consumer' });
+};
 
-  async connect(): Promise<void> {
-    try {
-      await this.producer.connect();
-      await this.consumer.connect();
-      this.connected = true;
-      console.log('✅ Connected to Kafka');
-    } catch (error) {
-      console.error('❌ Failed to connect to Kafka:', error);
-      throw error;
+export const connect = async (): Promise<void> => {
+  try {
+    if (!producer || !consumer) {
+      initialize();
     }
+    await producer.connect();
+    await consumer.connect();
+    connected = true;
+    console.log('✅ Connected to Kafka');
+  } catch (error) {
+    console.error('❌ Failed to connect to Kafka:', error);
+    throw error;
+  }
+};
+
+export const disconnect = async (): Promise<void> => {
+  try {
+    await producer.disconnect();
+    await consumer.disconnect();
+    connected = false;
+    console.log('✅ Disconnected from Kafka');
+  } catch (error) {
+    console.error('❌ Error disconnecting from Kafka:', error);
+  }
+};
+
+export const isConnected = (): boolean => {
+  return connected;
+};
+
+// Business Logic Methods
+
+/**
+ * Publish product created event
+ */
+export const publishProductCreated = async (product: any): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PRODUCT_CREATED,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      productId: product.id,
+      productName: product.name,
+      category: product.category?.name,
+      price: product.price,
+      inventoryCount: product.inventoryCount,
+      sku: product.sku,
+    },
+  };
+
+  await publishEvent('product-events', event);
+};
+
+/**
+ * Publish product updated event
+ */
+export const publishProductUpdated = async (
+  product: any,
+  changes: any
+): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PRODUCT_UPDATED,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      productId: product.id,
+      productName: product.name,
+      category: product.category?.name,
+      price: product.price,
+      inventoryCount: product.inventoryCount,
+      sku: product.sku,
+      changes,
+    },
+  };
+
+  await publishEvent('product-events', event);
+};
+
+/**
+ * Publish product deleted event
+ */
+export const publishProductDeleted = async (
+  productId: string
+): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PRODUCT_DELETED,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      productId,
+    },
+  };
+
+  await publishEvent('product-events', event);
+};
+
+/**
+ * Publish low stock alert
+ */
+export const publishLowStockAlert = async (
+  product: any,
+  threshold: number = 10
+): Promise<void> => {
+  if (product.inventoryCount > threshold) {
+    return; // Don't publish if inventory is above threshold
   }
 
-  async disconnect(): Promise<void> {
-    try {
-      await this.producer.disconnect();
-      await this.consumer.disconnect();
-      this.connected = false;
-      console.log('✅ Disconnected from Kafka');
-    } catch (error) {
-      console.error('❌ Error disconnecting from Kafka:', error);
-    }
-  }
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PRODUCT_LOW_STOCK,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      productId: product.id,
+      productName: product.name,
+      currentInventory: product.inventoryCount,
+      threshold,
+      alertLevel: product.inventoryCount === 0 ? 'out_of_stock' : 'low_stock',
+    },
+  };
 
-  isConnected(): boolean {
-    return this.connected;
-  }
+  await publishEvent('inventory-alerts', event);
+};
 
-  // Business Logic Methods
-
-  /**
-   * Publish product created event
-   */
-  async publishProductCreated(product: any): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.PRODUCT_CREATED,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        categoryId: product.categoryId,
-        inventoryCount: product.inventoryCount,
-        sku: product.sku,
+/**
+ * Publish search analytics
+ */
+export const publishSearchAnalytics = async (
+  query: string,
+  results: any[],
+  filters: any = {}
+): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.SEARCH_ANALYTICS,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      query,
+      resultCount: results.length,
+      filters,
+      searchMetrics: {
+        responseTime: Date.now(), // This would be calculated in real implementation
+        relevanceScore: 0.85, // This would be calculated in real implementation
       },
-    };
+    },
+  };
 
-    await this.publishEvent('product-events', event);
-  }
+  await publishEvent('search-analytics', event);
+};
 
-  /**
-   * Publish product updated event
-   */
-  async publishProductUpdated(product: any, changes: any): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.PRODUCT_UPDATED,
-      version: '1.0.0',
+/**
+ * Publish product viewed event
+ */
+export const publishProductViewed = async (
+  productId: string,
+  metadata?: any
+): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PRODUCT_VIEWED,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      productId,
+      viewTimestamp: new Date().toISOString(),
+    },
+    metadata,
+  };
+
+  await publishEvent('user-activity', event);
+};
+
+/**
+ * Publish system health event
+ */
+export const publishSystemHealth = async (healthData: any): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.SYSTEM_HEALTH,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      ...healthData,
       timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        categoryId: product.categoryId,
-        inventoryCount: product.inventoryCount,
-        sku: product.sku,
-        changes: changes, // What fields were updated
-      },
-    };
+    },
+  };
 
-    await this.publishEvent('product-events', event);
-  }
+  await publishEvent('system-events', event);
+};
 
-  /**
-   * Publish product deleted event
-   */
-  async publishProductDeleted(productId: string): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.PRODUCT_DELETED,
-      version: '1.0.0',
+/**
+ * Publish performance metric event
+ */
+export const publishPerformanceMetric = async (
+  metric: string,
+  value: number,
+  tags: any = {}
+): Promise<void> => {
+  const event: EventSchema = {
+    id: generateEventId(),
+    type: EventType.PERFORMANCE_METRIC,
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    source: 'api-gateway',
+    data: {
+      metric,
+      value,
+      tags,
       timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        productId: productId,
-      },
-    };
+    },
+  };
 
-    await this.publishEvent('product-events', event);
+  await publishEvent('performance-metrics', event);
+};
+
+/**
+ * Publish generic event
+ */
+export const publishEvent = async (
+  topic: string,
+  event: EventSchema
+): Promise<void> => {
+  if (!producer) {
+    throw new Error('Kafka producer not initialized');
   }
 
-  /**
-   * Publish low stock alert
-   */
-  async publishLowStockAlert(
-    product: any,
-    threshold: number = 10
-  ): Promise<void> {
-    if (product.inventoryCount <= threshold) {
-      const event: EventSchema = {
-        id: this.generateEventId(),
-        type: EventType.PRODUCT_LOW_STOCK,
-        version: '1.0.0',
-        timestamp: new Date().toISOString(),
-        source: 'api-gateway',
-        data: {
-          productId: product.id,
-          name: product.name,
-          currentStock: product.inventoryCount,
-          threshold: threshold,
-          sku: product.sku,
-        },
-      };
-
-      await this.publishEvent('inventory-alerts', event);
-    }
-  }
-
-  /**
-   * Publish search analytics
-   */
-  async publishSearchAnalytics(
-    query: string,
-    results: any[],
-    filters: any = {}
-  ): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.SEARCH_ANALYTICS,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        query: query,
-        resultCount: results.length,
-        filters: filters,
-        topResults: results.slice(0, 5).map((r) => ({
-          id: r.id,
-          name: r.name,
-          score: r.score,
-        })),
-      },
-    };
-
-    await this.publishEvent('search-analytics', event);
-  }
-
-  /**
-   * Publish product view event
-   */
-  async publishProductViewed(productId: string, metadata?: any): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.PRODUCT_VIEWED,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        productId: productId,
-      },
-      metadata: metadata,
-    };
-
-    await this.publishEvent('user-behavior', event);
-  }
-
-  /**
-   * Publish system health event
-   */
-  async publishSystemHealth(healthData: any): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.SYSTEM_HEALTH,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: healthData,
-    };
-
-    await this.publishEvent('system-metrics', event);
-  }
-
-  /**
-   * Publish performance metric
-   */
-  async publishPerformanceMetric(
-    metric: string,
-    value: number,
-    tags: any = {}
-  ): Promise<void> {
-    const event: EventSchema = {
-      id: this.generateEventId(),
-      type: EventType.PERFORMANCE_METRIC,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      source: 'api-gateway',
-      data: {
-        metric: metric,
-        value: value,
-        tags: tags,
-      },
-    };
-
-    await this.publishEvent('performance-metrics', event);
-  }
-
-  // Generic event publishing with improved error handling
-  async publishEvent(topic: string, event: EventSchema): Promise<void> {
-    try {
-      await this.producer.send({
-        topic: topic,
-        messages: [
-          {
-            key: event.id,
-            value: JSON.stringify(event),
-            headers: {
-              eventType: event.type,
-              version: event.version,
-              timestamp: event.timestamp,
-            },
+  try {
+    await producer.send({
+      topic,
+      messages: [
+        {
+          key: event.id,
+          value: JSON.stringify(event),
+          headers: {
+            eventType: event.type,
+            version: event.version,
+            timestamp: event.timestamp,
           },
-        ],
-      });
-
-      console.log(`📤 Published ${event.type} event to ${topic}`);
-      console.log(`📋 Event Details:`, {
-        id: event.id,
-        type: event.type,
-        timestamp: event.timestamp,
-        data: event.data,
-        metadata: event.metadata,
-      });
-    } catch (error) {
-      // Handle leadership election errors gracefully
-      if (
-        error instanceof Error &&
-        error.message.includes('leadership election')
-      ) {
-        console.warn(
-          `⚠️ Kafka leadership election in progress for topic ${topic}, retrying...`
-        );
-        // Could implement retry logic here if needed
-        return;
-      }
-
-      console.error(`❌ Failed to publish ${event.type} event:`, error);
-      // Don't throw error to prevent API failures - just log it
-      // throw error;
-    }
-  }
-
-  // Event consumption
-  async subscribeToTopic(
-    topic: string,
-    handler: (message: KafkaMessage) => void
-  ): Promise<void> {
-    try {
-      await this.consumer.subscribe({ topic: topic, fromBeginning: false });
-
-      await this.consumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-          try {
-            console.log(
-              `📥 Received message from ${topic}:`,
-              message.value?.toString()
-            );
-            handler(message);
-          } catch (error) {
-            console.error('❌ Error processing message:', error);
-          }
         },
-      });
+      ],
+    });
 
-      console.log(`✅ Subscribed to topic: ${topic}`);
-    } catch (error) {
-      console.error(`❌ Failed to subscribe to ${topic}:`, error);
-      throw error;
-    }
+    console.log(`✅ Published event ${event.type} to topic ${topic}`);
+  } catch (error) {
+    console.error(
+      `❌ Failed to publish event ${event.type} to topic ${topic}:`,
+      error
+    );
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to topic
+ */
+export const subscribeToTopic = async (
+  topic: string,
+  handler: (message: KafkaMessage) => void
+): Promise<void> => {
+  if (!consumer) {
+    throw new Error('Kafka consumer not initialized');
   }
 
-  // Utility methods
-  private generateEventId(): string {
-    return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
+  try {
+    await consumer.subscribe({ topic, fromBeginning: false });
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        try {
+          console.log(`📨 Received message from topic ${topic}`);
+          handler(message);
+        } catch (error) {
+          console.error(
+            `❌ Error processing message from topic ${topic}:`,
+            error
+          );
+        }
+      },
+    });
 
-  // Health check with improved error handling
-  async healthCheck(): Promise<any> {
-    try {
-      const metadata = await this.kafka.admin().fetchTopicMetadata();
-      return {
-        status: 'connected',
-        topics: Object.keys(metadata.topics),
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      return {
-        status: 'disconnected',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      };
-    }
+    console.log(`✅ Subscribed to topic: ${topic}`);
+  } catch (error) {
+    console.error(`❌ Failed to subscribe to topic ${topic}:`, error);
+    throw error;
   }
-}
+};
 
-export default new KafkaService();
+/**
+ * Generate unique event ID
+ */
+const generateEventId = (): string => {
+  return `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+};
+
+/**
+ * Health check
+ */
+export const healthCheck = async (): Promise<any> => {
+  try {
+    const admin = kafka.admin();
+    await admin.connect();
+
+    const metadata = await admin.fetchTopicMetadata();
+    await admin.disconnect();
+
+    return {
+      status: 'healthy',
+      topics: metadata.topics.length,
+      connected: connected,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      connected: connected,
+      timestamp: new Date().toISOString(),
+    };
+  }
+};
+
+// Default export for backward compatibility
+const kafkaService = {
+  initialize,
+  connect,
+  disconnect,
+  isConnected,
+  publishProductCreated,
+  publishProductUpdated,
+  publishProductDeleted,
+  publishLowStockAlert,
+  publishSearchAnalytics,
+  publishProductViewed,
+  publishSystemHealth,
+  publishPerformanceMetric,
+  publishEvent,
+  subscribeToTopic,
+  healthCheck,
+};
+
+export default kafkaService;

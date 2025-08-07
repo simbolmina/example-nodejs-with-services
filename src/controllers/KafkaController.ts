@@ -1,5 +1,14 @@
 import { Request, Response } from 'express';
-import KafkaAdminService, {
+import {
+  getHealth as getHealthService,
+  getConnectionStatus as getConnectionStatusService,
+  publishCustomEvent as publishCustomEventService,
+  publishProductCreatedEvent as publishProductCreatedEventService,
+  publishProductUpdatedEvent as publishProductUpdatedEventService,
+  publishProductDeletedEvent as publishProductDeletedEventService,
+  publishSearchAnalyticsEvent as publishSearchAnalyticsEventService,
+  publishSystemHealthEvent as publishSystemHealthEventService,
+  publishPerformanceMetricEvent as publishPerformanceMetricEventService,
   PublishEventData,
   ProductEventData,
   SearchAnalyticsData,
@@ -7,211 +16,230 @@ import KafkaAdminService, {
   PerformanceMetricData,
 } from '../services/KafkaService.js';
 
-class KafkaController {
-  /**
-   * Get Kafka health status
-   */
-  async getHealth(req: Request, res: Response) {
-    try {
-      const health = await KafkaAdminService.getHealth();
-      res.json(health);
-    } catch (error) {
-      console.error('❌ Error checking Kafka health:', error);
-      res.status(500).json({ error: 'Failed to check Kafka health' });
-    }
+/**
+ * Get Kafka health status
+ */
+export const getHealth = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const health = await getHealthService();
+    return res.json(health);
+  } catch (error) {
+    console.error('❌ Error checking Kafka health:', error);
+    return res.status(500).json({ error: 'Failed to check Kafka health' });
   }
+};
 
-  /**
-   * Get connection status
-   */
-  async getConnectionStatus(req: Request, res: Response) {
-    try {
-      const status = await KafkaAdminService.getConnectionStatus();
-      res.json(status);
-    } catch (error) {
-      console.error('❌ Error checking Kafka connection:', error);
-      res.status(500).json({ error: 'Failed to check Kafka connection' });
-    }
+/**
+ * Get connection status
+ */
+export const getConnectionStatus = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const status = await getConnectionStatusService();
+    return res.json(status);
+  } catch (error) {
+    console.error('❌ Error checking Kafka connection:', error);
+    return res.status(500).json({ error: 'Failed to check Kafka connection' });
   }
+};
 
-  /**
-   * Publish a custom event
-   */
-  async publishCustomEvent(req: Request, res: Response) {
-    try {
-      const { topic, eventType, data, metadata } = req.body;
+/**
+ * Publish a custom event
+ */
+export const publishCustomEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { topic, eventType, data, metadata } = req.body;
 
-      if (!topic || !eventType || !data) {
-        return res.status(400).json({
-          error: 'Missing required fields: topic, eventType, data',
-        });
-      }
-
-      const publishData: PublishEventData = {
-        topic,
-        eventType,
-        data,
-        metadata,
-      };
-
-      const result = await KafkaAdminService.publishCustomEvent(publishData);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing custom event:', error);
-      res.status(500).json({ error: 'Failed to publish custom event' });
+    if (!topic || !eventType || !data) {
+      return res.status(400).json({
+        error: 'Missing required fields: topic, eventType, data',
+      });
     }
+
+    const publishData: PublishEventData = {
+      topic,
+      eventType,
+      data,
+      metadata,
+    };
+
+    const result = await publishCustomEventService(publishData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing custom event:', error);
+    return res.status(500).json({ error: 'Failed to publish custom event' });
   }
+};
 
-  /**
-   * Publish product created event
-   */
-  async publishProductCreatedEvent(req: Request, res: Response) {
-    try {
-      const { product } = req.body;
+/**
+ * Publish product created event
+ */
+export const publishProductCreatedEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { product } = req.body;
 
-      if (!product) {
-        return res.status(400).json({
-          error: 'Product data is required',
-        });
-      }
-
-      const eventData: ProductEventData = { product };
-      const result =
-        await KafkaAdminService.publishProductCreatedEvent(eventData);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing product created event:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to publish product created event' });
+    if (!product) {
+      return res.status(400).json({
+        error: 'Product data is required',
+      });
     }
+
+    const eventData: ProductEventData = { product };
+    const result = await publishProductCreatedEventService(eventData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing product created event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish product created event' });
   }
+};
 
-  /**
-   * Publish product updated event
-   */
-  async publishProductUpdatedEvent(req: Request, res: Response) {
-    try {
-      const { product, changes } = req.body;
+/**
+ * Publish product updated event
+ */
+export const publishProductUpdatedEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { product, changes } = req.body;
 
-      if (!product) {
-        return res.status(400).json({
-          error: 'Product data is required',
-        });
-      }
-
-      const eventData: ProductEventData = { product, changes };
-      const result =
-        await KafkaAdminService.publishProductUpdatedEvent(eventData);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing product updated event:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to publish product updated event' });
+    if (!product) {
+      return res.status(400).json({
+        error: 'Product data is required',
+      });
     }
+
+    const eventData: ProductEventData = { product, changes };
+    const result = await publishProductUpdatedEventService(eventData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing product updated event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish product updated event' });
   }
+};
 
-  /**
-   * Publish product deleted event
-   */
-  async publishProductDeletedEvent(req: Request, res: Response) {
-    try {
-      const { productId } = req.body;
+/**
+ * Publish product deleted event
+ */
+export const publishProductDeletedEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { productId } = req.body;
 
-      if (!productId) {
-        return res.status(400).json({
-          error: 'Product ID is required',
-        });
-      }
-
-      const result =
-        await KafkaAdminService.publishProductDeletedEvent(productId);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing product deleted event:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to publish product deleted event' });
+    if (!productId) {
+      return res.status(400).json({
+        error: 'Product ID is required',
+      });
     }
+
+    const result = await publishProductDeletedEventService(productId);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing product deleted event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish product deleted event' });
   }
+};
 
-  /**
-   * Publish search analytics event
-   */
-  async publishSearchAnalyticsEvent(req: Request, res: Response) {
-    try {
-      const { query, results, filters } = req.body;
+/**
+ * Publish search analytics event
+ */
+export const publishSearchAnalyticsEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { query, filters, results } = req.body;
 
-      if (!query) {
-        return res.status(400).json({
-          error: 'Search query is required',
-        });
-      }
-
-      const analyticsData: SearchAnalyticsData = {
-        query,
-        results,
-        filters,
-      };
-
-      const result =
-        await KafkaAdminService.publishSearchAnalyticsEvent(analyticsData);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing search analytics event:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to publish search analytics event' });
+    if (!query) {
+      return res.status(400).json({
+        error: 'Search query is required',
+      });
     }
+
+    const eventData: SearchAnalyticsData = {
+      query,
+      filters,
+      results,
+    };
+
+    const result = await publishSearchAnalyticsEventService(eventData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing search analytics event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish search analytics event' });
   }
+};
 
-  /**
-   * Publish system health event
-   */
-  async publishSystemHealthEvent(req: Request, res: Response) {
-    try {
-      const { healthData } = req.body;
+/**
+ * Publish system health event
+ */
+export const publishSystemHealthEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { healthData } = req.body;
 
-      const healthDataObj: SystemHealthData = { healthData };
-      const result =
-        await KafkaAdminService.publishSystemHealthEvent(healthDataObj);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing system health event:', error);
-      res.status(500).json({ error: 'Failed to publish system health event' });
+    const eventData: SystemHealthData = { healthData };
+    const result = await publishSystemHealthEventService(eventData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing system health event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish system health event' });
+  }
+};
+
+/**
+ * Publish performance metric event
+ */
+export const publishPerformanceMetricEvent = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { metric, value, tags } = req.body;
+
+    if (!metric || value === undefined) {
+      return res.status(400).json({
+        error: 'Metric name and value are required',
+      });
     }
+
+    const eventData: PerformanceMetricData = {
+      metric,
+      value,
+      tags,
+    };
+
+    const result = await publishPerformanceMetricEventService(eventData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error publishing performance metric event:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to publish performance metric event' });
   }
-
-  /**
-   * Publish performance metric event
-   */
-  async publishPerformanceMetricEvent(req: Request, res: Response) {
-    try {
-      const { metric, value, tags } = req.body;
-
-      if (!metric || value === undefined) {
-        return res.status(400).json({
-          error: 'Metric name and value are required',
-        });
-      }
-
-      const metricData: PerformanceMetricData = {
-        metric,
-        value,
-        tags,
-      };
-
-      const result =
-        await KafkaAdminService.publishPerformanceMetricEvent(metricData);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error publishing performance metric event:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to publish performance metric event' });
-    }
-  }
-}
-
-export default new KafkaController();
+};

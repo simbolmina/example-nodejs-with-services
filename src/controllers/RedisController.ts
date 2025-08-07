@@ -1,419 +1,494 @@
 import { Request, Response } from 'express';
-import RedisAdminService, {
+import {
+  getHealth as getHealthService,
+  getConnectionStatus as getConnectionStatusService,
+  setKey as setKeyService,
+  getKey as getKeyService,
+  deleteKey as deleteKeyService,
+  keyExists as keyExistsService,
+  getKeyTTL as getKeyTTLService,
+  setKeyExpiry as setKeyExpiryService,
+  getKeys as getKeysService,
+  getInfo as getInfoService,
+  getMemoryUsage as getMemoryUsageService,
+  setHashField as setHashFieldService,
+  getHashField as getHashFieldService,
+  getHashFields as getHashFieldsService,
+  deleteHashField as deleteHashFieldService,
+  setHashFields as setHashFieldsService,
+  pushToList as pushToListService,
+  popFromList as popFromListService,
+  getListRange as getListRangeService,
+  getListLength as getListLengthService,
   SetDataOptions,
   HashData,
 } from '../services/RedisService.js';
 
-class RedisController {
-  /**
-   * Get Redis health status
-   */
-  async getHealth(req: Request, res: Response) {
-    try {
-      const health = await RedisAdminService.getHealth();
-      res.json(health);
-    } catch (error) {
-      console.error('❌ Error checking Redis health:', error);
-      res.status(500).json({ error: 'Failed to check Redis health' });
-    }
+/**
+ * Get Redis health status
+ */
+export const getHealth = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const health = await getHealthService();
+    return res.json(health);
+  } catch (error) {
+    console.error('❌ Error checking Redis health:', error);
+    return res.status(500).json({ error: 'Failed to check Redis health' });
   }
+};
 
-  /**
-   * Get connection status
-   */
-  async getConnectionStatus(req: Request, res: Response) {
-    try {
-      const status = await RedisAdminService.getConnectionStatus();
-      res.json(status);
-    } catch (error) {
-      console.error('❌ Error checking Redis connection:', error);
-      res.status(500).json({ error: 'Failed to check Redis connection' });
-    }
+/**
+ * Get connection status
+ */
+export const getConnectionStatus = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const status = await getConnectionStatusService();
+    return res.json(status);
+  } catch (error) {
+    console.error('❌ Error checking Redis connection:', error);
+    return res.status(500).json({ error: 'Failed to check Redis connection' });
   }
+};
 
-  /**
-   * Set a key-value pair
-   */
-  async setKey(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const { value, ttl, nx, xx } = req.body;
+/**
+ * Set a key-value pair
+ */
+export const setKey = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { value, ttl, nx, xx } = req.body;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (value === undefined) {
-        return res.status(400).json({ error: 'Value is required' });
-      }
-
-      const options: SetDataOptions = { ttl, nx, xx };
-      const result = await RedisAdminService.setKey(key, value, options);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error setting Redis key:', error);
-      res.status(500).json({ error: 'Failed to set Redis key' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Get a value by key
-   */
-  async getKey(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.getKey(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis key:', error);
-      if (error instanceof Error && error.message.includes('not found')) {
-        return res.status(404).json({ error: error.message });
-      }
-      res.status(500).json({ error: 'Failed to get Redis key' });
+    if (value === undefined) {
+      return res.status(400).json({ error: 'Value is required' });
     }
+
+    const options: SetDataOptions = { ttl, nx, xx };
+    const result = await setKeyService(key, value, options);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error setting Redis key:', error);
+    return res.status(500).json({ error: 'Failed to set Redis key' });
   }
+};
 
-  /**
-   * Delete a key
-   */
-  async deleteKey(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
+/**
+ * Get a value by key
+ */
+export const getKey = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.deleteKey(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error deleting Redis key:', error);
-      res.status(500).json({ error: 'Failed to delete Redis key' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Check if key exists
-   */
-  async keyExists(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.keyExists(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error checking Redis key existence:', error);
-      res.status(500).json({ error: 'Failed to check Redis key existence' });
+    const result = await getKeyService(key);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error getting Redis key:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
     }
+    return res.status(500).json({ error: 'Failed to get Redis key' });
   }
+};
 
-  /**
-   * Get key TTL
-   */
-  async getKeyTTL(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
+/**
+ * Delete a key
+ */
+export const deleteKey = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.getKeyTTL(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis key TTL:', error);
-      res.status(500).json({ error: 'Failed to get Redis key TTL' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
+
+    const result = await deleteKeyService(key);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error deleting Redis key:', error);
+    return res.status(500).json({ error: 'Failed to delete Redis key' });
   }
+};
 
-  /**
-   * Set key expiration
-   */
-  async setKeyExpiry(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const { seconds } = req.body;
+/**
+ * Check if a key exists
+ */
+export const keyExists = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (!seconds || typeof seconds !== 'number') {
-        return res
-          .status(400)
-          .json({ error: 'Seconds is required and must be a number' });
-      }
-
-      const result = await RedisAdminService.setKeyExpiry(key, seconds);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error setting Redis key expiry:', error);
-      res.status(500).json({ error: 'Failed to set Redis key expiry' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
+
+    const exists = await keyExistsService(key);
+    return res.json({ key, exists });
+  } catch (error) {
+    console.error('❌ Error checking Redis key existence:', error);
+    return res.status(500).json({ error: 'Failed to check key existence' });
   }
+};
 
-  /**
-   * Get all keys matching pattern
-   */
-  async getKeys(req: Request, res: Response) {
-    try {
-      const { pattern = '*' } = req.query;
+/**
+ * Get TTL for a key
+ */
+export const getKeyTTL = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
 
-      const result = await RedisAdminService.getKeys(pattern as string);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis keys:', error);
-      res.status(500).json({ error: 'Failed to get Redis keys' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Get Redis info
-   */
-  async getInfo(req: Request, res: Response) {
-    try {
-      const result = await RedisAdminService.getInfo();
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis info:', error);
-      res.status(500).json({ error: 'Failed to get Redis info' });
+    const ttl = await getKeyTTLService(key);
+    return res.json({ key, ttl });
+  } catch (error) {
+    console.error('❌ Error getting Redis key TTL:', error);
+    return res.status(500).json({ error: 'Failed to get key TTL' });
+  }
+};
+
+/**
+ * Set expiry for a key
+ */
+export const setKeyExpiry = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { ttl } = req.body;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Get memory usage
-   */
-  async getMemoryUsage(req: Request, res: Response) {
-    try {
-      const result = await RedisAdminService.getMemoryUsage();
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis memory usage:', error);
-      res.status(500).json({ error: 'Failed to get Redis memory usage' });
+    if (ttl === undefined || ttl < 0) {
+      return res.status(400).json({ error: 'Valid TTL is required' });
     }
+
+    const result = await setKeyExpiryService(key, ttl);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error setting Redis key expiry:', error);
+    return res.status(500).json({ error: 'Failed to set key expiry' });
   }
+};
 
-  /**
-   * Set hash field
-   */
-  async setHashField(req: Request, res: Response) {
-    try {
-      const { key, field } = req.params;
-      const { value } = req.body;
+/**
+ * Get keys matching a pattern
+ */
+export const getKeys = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { pattern = '*' } = req.query;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
+    const keys = await getKeysService(pattern as string);
+    return res.json({
+      pattern,
+      keys,
+      count: Array.isArray(keys) ? keys.length : 0,
+    });
+  } catch (error) {
+    console.error('❌ Error getting Redis keys:', error);
+    return res.status(500).json({ error: 'Failed to get keys' });
+  }
+};
 
-      if (!field) {
-        return res.status(400).json({ error: 'Field is required' });
-      }
+/**
+ * Get Redis server info
+ */
+export const getInfo = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const info = await getInfoService();
+    return res.json(info);
+  } catch (error) {
+    console.error('❌ Error getting Redis info:', error);
+    return res.status(500).json({ error: 'Failed to get Redis info' });
+  }
+};
 
-      if (value === undefined) {
-        return res.status(400).json({ error: 'Value is required' });
-      }
+/**
+ * Get memory usage statistics
+ */
+export const getMemoryUsage = async (
+  _req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const memory = await getMemoryUsageService();
+    return res.json(memory);
+  } catch (error) {
+    console.error('❌ Error getting Redis memory usage:', error);
+    return res.status(500).json({ error: 'Failed to get memory usage' });
+  }
+};
 
-      const result = await RedisAdminService.setHashField(key, field, value);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error setting Redis hash field:', error);
-      res.status(500).json({ error: 'Failed to set Redis hash field' });
+/**
+ * Set a hash field
+ */
+export const setHashField = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key, field } = req.params;
+    const { value } = req.body;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Get hash field
-   */
-  async getHashField(req: Request, res: Response) {
-    try {
-      const { key, field } = req.params;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (!field) {
-        return res.status(400).json({ error: 'Field is required' });
-      }
-
-      const result = await RedisAdminService.getHashField(key, field);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis hash field:', error);
-      if (error instanceof Error && error.message.includes('not found')) {
-        return res.status(404).json({ error: error.message });
-      }
-      res.status(500).json({ error: 'Failed to get Redis hash field' });
+    if (!field) {
+      return res.status(400).json({ error: 'Field is required' });
     }
-  }
 
-  /**
-   * Get all hash fields
-   */
-  async getHashFields(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.getHashFields(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis hash fields:', error);
-      res.status(500).json({ error: 'Failed to get Redis hash fields' });
+    if (value === undefined) {
+      return res.status(400).json({ error: 'Value is required' });
     }
+
+    const result = await setHashFieldService(key, field, value);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error setting Redis hash field:', error);
+    return res.status(500).json({ error: 'Failed to set hash field' });
   }
+};
 
-  /**
-   * Delete hash field
-   */
-  async deleteHashField(req: Request, res: Response) {
-    try {
-      const { key, field } = req.params;
+/**
+ * Get a hash field
+ */
+export const getHashField = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key, field } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (!field) {
-        return res.status(400).json({ error: 'Field is required' });
-      }
-
-      const result = await RedisAdminService.deleteHashField(key, field);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error deleting Redis hash field:', error);
-      res.status(500).json({ error: 'Failed to delete Redis hash field' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Set multiple hash fields
-   */
-  async setHashFields(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const data: HashData = req.body;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (!data || Object.keys(data).length === 0) {
-        return res.status(400).json({ error: 'Hash data is required' });
-      }
-
-      const result = await RedisAdminService.setHashFields(key, data);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error setting Redis hash fields:', error);
-      res.status(500).json({ error: 'Failed to set Redis hash fields' });
+    if (!field) {
+      return res.status(400).json({ error: 'Field is required' });
     }
-  }
 
-  /**
-   * Push to list
-   */
-  async pushToList(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const { value, direction = 'right' } = req.body;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      if (value === undefined) {
-        return res.status(400).json({ error: 'Value is required' });
-      }
-
-      const result = await RedisAdminService.pushToList(key, value, direction);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error pushing to Redis list:', error);
-      res.status(500).json({ error: 'Failed to push to Redis list' });
+    const value = await getHashFieldService(key, field);
+    return res.json({ key, field, value });
+  } catch (error) {
+    console.error('❌ Error getting Redis hash field:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
     }
+    return res.status(500).json({ error: 'Failed to get hash field' });
   }
+};
 
-  /**
-   * Pop from list
-   */
-  async popFromList(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const { direction = 'right' } = req.query;
+/**
+ * Get all hash fields
+ */
+export const getHashFields = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.popFromList(
-        key,
-        direction as 'left' | 'right'
-      );
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error popping from Redis list:', error);
-      if (error instanceof Error && error.message.includes('empty')) {
-        return res.status(404).json({ error: error.message });
-      }
-      res.status(500).json({ error: 'Failed to pop from Redis list' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
+
+    const fields = await getHashFieldsService(key);
+    return res.json({ key, fields });
+  } catch (error) {
+    console.error('❌ Error getting Redis hash fields:', error);
+    return res.status(500).json({ error: 'Failed to get hash fields' });
   }
+};
 
-  /**
-   * Get list range
-   */
-  async getListRange(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-      const { start = 0, stop = -1 } = req.query;
+/**
+ * Delete a hash field
+ */
+export const deleteHashField = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key, field } = req.params;
 
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.getListRange(
-        key,
-        parseInt(start as string),
-        parseInt(stop as string)
-      );
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis list range:', error);
-      res.status(500).json({ error: 'Failed to get Redis list range' });
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
     }
-  }
 
-  /**
-   * Get list length
-   */
-  async getListLength(req: Request, res: Response) {
-    try {
-      const { key } = req.params;
-
-      if (!key) {
-        return res.status(400).json({ error: 'Key is required' });
-      }
-
-      const result = await RedisAdminService.getListLength(key);
-      res.json(result);
-    } catch (error) {
-      console.error('❌ Error getting Redis list length:', error);
-      res.status(500).json({ error: 'Failed to get Redis list length' });
+    if (!field) {
+      return res.status(400).json({ error: 'Field is required' });
     }
-  }
-}
 
-export default new RedisController();
+    const result = await deleteHashFieldService(key, field);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error deleting Redis hash field:', error);
+    return res.status(500).json({ error: 'Failed to delete hash field' });
+  }
+};
+
+/**
+ * Set multiple hash fields
+ */
+export const setHashFields = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { fields } = req.body;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
+    }
+
+    if (!fields || typeof fields !== 'object') {
+      return res.status(400).json({ error: 'Fields object is required' });
+    }
+
+    const result = await setHashFieldsService(key, fields as HashData);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error setting Redis hash fields:', error);
+    return res.status(500).json({ error: 'Failed to set hash fields' });
+  }
+};
+
+/**
+ * Push to a list
+ */
+export const pushToList = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { value, direction = 'right' } = req.body;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
+    }
+
+    if (value === undefined) {
+      return res.status(400).json({ error: 'Value is required' });
+    }
+
+    const result = await pushToListService(key, value, direction);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error pushing to Redis list:', error);
+    return res.status(500).json({ error: 'Failed to push to list' });
+  }
+};
+
+/**
+ * Pop from a list
+ */
+export const popFromList = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { direction = 'left' } = req.query;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
+    }
+
+    const result = await popFromListService(key, direction as 'left' | 'right');
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error popping from Redis list:', error);
+    if (error instanceof Error && error.message.includes('empty')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({ error: 'Failed to pop from list' });
+  }
+};
+
+/**
+ * Get list range
+ */
+export const getListRange = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+    const { start = 0, stop = -1 } = req.query;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
+    }
+
+    const range = await getListRangeService(
+      key,
+      parseInt(start as string),
+      parseInt(stop as string)
+    );
+    return res.json({ key, range });
+  } catch (error) {
+    console.error('❌ Error getting Redis list range:', error);
+    return res.status(500).json({ error: 'Failed to get list range' });
+  }
+};
+
+/**
+ * Get list length
+ */
+export const getListLength = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { key } = req.params;
+
+    if (!key) {
+      return res.status(400).json({ error: 'Key is required' });
+    }
+
+    const length = await getListLengthService(key);
+    return res.json({ key, length });
+  } catch (error) {
+    console.error('❌ Error getting Redis list length:', error);
+    return res.status(500).json({ error: 'Failed to get list length' });
+  }
+};
