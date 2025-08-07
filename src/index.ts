@@ -48,9 +48,9 @@ setupSwagger(app);
 app.use(
   (
     err: any,
-    req: express.Request,
+    _req: express.Request,
     res: express.Response,
-    next: express.NextFunction
+    _next: express.NextFunction
   ) => {
     console.error('❌ Error:', err);
     res.status(500).json({ error: 'Internal server error' });
