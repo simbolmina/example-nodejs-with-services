@@ -6,6 +6,7 @@ import { redisPaths } from './redis.js';
 import { kafkaPaths } from './kafka.js';
 import { analyticsPaths } from './analytics.js';
 import { rabbitmqPaths } from './rabbitmq.js';
+import { businessIntelligencePaths } from './business-intelligence.js';
 
 export const paths = {
   ...systemPaths,
@@ -16,4 +17,5 @@ export const paths = {
   ...kafkaPaths,
   ...analyticsPaths,
   ...rabbitmqPaths,
+  ...businessIntelligencePaths,
 };

@@ -54,7 +54,8 @@ src/
 │   ├── KafkaController.ts
 │   ├── AnalyticsController.ts
 │   ├── RabbitMQController.ts
-│   └── EmailController.ts
+│   ├── EmailController.ts
+│   └── BusinessIntelligenceController.ts
 ├── services/             # Business logic layer
 │   ├── ProductService.ts
 │   ├── CategoryService.ts
@@ -63,7 +64,8 @@ src/
 │   ├── KafkaService.ts
 │   ├── AnalyticsService.ts
 │   ├── RabbitMQService.ts
-│   └── EmailService.ts
+│   ├── EmailService.ts
+│   └── BusinessIntelligenceService.ts
 ├── routes/               # Route definitions
 │   ├── products.ts
 │   ├── categories.ts
@@ -73,6 +75,7 @@ src/
 │   ├── analytics.ts
 │   ├── rabbitmq.ts
 │   ├── email.ts
+│   ├── business-intelligence.ts
 │   └── app.ts
 ├── lib/                  # External service clients
 │   ├── elasticsearch.ts
@@ -155,6 +158,9 @@ src/
 - Recent events log with rolling history
 - Event processor consuming from Kafka
 - Redis analytics storage for real-time data
+- **Enhanced Analytics**: Performance metrics, user behavior tracking, complex queries
+- **Advanced Dashboard APIs**: Real-time performance monitoring and trend analysis
+- **Business Intelligence**: Automated alerts, trend detection, predictive analytics, custom reporting
 
 ### 6. Email Notifications
 
@@ -167,15 +173,27 @@ src/
 - Custom email support with flexible content
 - Background processing via notification worker
 
+### 7. Business Intelligence
+
+- **Automated Alerts**: Configurable alert rules with threshold and trend monitoring
+- **Trend Detection**: Advanced trend analysis with confidence scoring and recommendations
+- **Predictive Analytics**: Basic predictive insights using historical data patterns
+- **Custom Reporting**: Flexible report generation with scheduling and filtering
+- **Alert Management**: CRUD operations for alert rules with email/webhook notifications
+- **Real-time Monitoring**: Continuous monitoring of business metrics and KPIs
+- **Enhanced Analytics**: Performance metrics, user behavior tracking, complex queries
+- **Advanced Dashboard APIs**: Real-time performance monitoring and trend analysis
+
 ## 🛠️ Microservices Architecture
 
-| Service                  | Technology              | Purpose                            |
-| ------------------------ | ----------------------- | ---------------------------------- |
-| **API Gateway**          | Express + TypeScript    | Main entry point, request routing  |
-| **Product Service**      | Express + PostgreSQL    | Product CRUD, inventory management |
-| **Search Service**       | Express + Elasticsearch | Product search, analytics queries  |
-| **Event Processor**      | Node.js + Kafka + Redis | Stream processing, analytics       |
-| **Notification Service** | Node.js + RabbitMQ      | Email notifications and alerts     |
+| Service                   | Technology              | Purpose                            |
+| ------------------------- | ----------------------- | ---------------------------------- |
+| **API Gateway**           | Express + TypeScript    | Main entry point, request routing  |
+| **Product Service**       | Express + PostgreSQL    | Product CRUD, inventory management |
+| **Search Service**        | Express + Elasticsearch | Product search, analytics queries  |
+| **Event Processor**       | Node.js + Kafka + Redis | Stream processing, analytics       |
+| **Notification Service**  | Node.js + RabbitMQ      | Email notifications and alerts     |
+| **Business Intelligence** | Node.js + Redis         | Advanced analytics and BI features |
 
 ### How Services Work Together
 
@@ -183,7 +201,8 @@ src/
 2. **Event Processor** consumes Kafka events, processes analytics, stores in Redis
 3. **API Gateway** publishes notifications to RabbitMQ for alerts
 4. **Notification Worker** consumes RabbitMQ messages and sends emails
-5. **All services are independent** - no direct HTTP calls between them
+5. **Business Intelligence** processes advanced analytics and generates insights
+6. **All services are independent** - no direct HTTP calls between them
 
 ## 🎯 Technical Highlights
 

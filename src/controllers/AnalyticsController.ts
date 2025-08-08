@@ -37,6 +37,76 @@ export const getDashboard = async (_req: Request, res: Response) => {
   }
 };
 
+// Enhanced Analytics Endpoints
+
+export const getPerformanceMetrics = async (_req: Request, res: Response) => {
+  try {
+    const metrics = await analyticsService.getPerformanceMetrics();
+    return res.json(metrics);
+  } catch (error) {
+    console.error('❌ Error fetching performance metrics:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to fetch performance metrics' });
+  }
+};
+
+export const getUserBehavior = async (_req: Request, res: Response) => {
+  try {
+    const behavior = await analyticsService.getUserBehaviorMetrics();
+    return res.json(behavior);
+  } catch (error) {
+    console.error('❌ Error fetching user behavior metrics:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to fetch user behavior metrics' });
+  }
+};
+
+export const getTrends = async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Number(req.query.days || 7), 30);
+    const trends = await analyticsService.getTrendData(days);
+    return res.json(trends);
+  } catch (error) {
+    console.error('❌ Error fetching trend data:', error);
+    return res.status(500).json({ error: 'Failed to fetch trend data' });
+  }
+};
+
+export const getComplexAnalytics = async (req: Request, res: Response) => {
+  try {
+    const { dateRange, eventType, productId } = req.query;
+
+    const filters: any = {};
+
+    if (dateRange && typeof dateRange === 'string') {
+      try {
+        const parsed = JSON.parse(dateRange);
+        if (parsed.start && parsed.end) {
+          filters.dateRange = parsed;
+        }
+      } catch (e) {
+        // Invalid JSON, ignore
+      }
+    }
+
+    if (eventType && typeof eventType === 'string') {
+      filters.eventType = eventType;
+    }
+
+    if (productId && typeof productId === 'string') {
+      filters.productId = productId;
+    }
+
+    const analytics = await analyticsService.getComplexAnalytics(filters);
+    return res.json(analytics);
+  } catch (error) {
+    console.error('❌ Error fetching complex analytics:', error);
+    return res.status(500).json({ error: 'Failed to fetch complex analytics' });
+  }
+};
+
 function renderDashboard(summary: any, events: any[]) {
   const escape = (s: string) =>
     String(s)
@@ -129,7 +199,7 @@ function renderDashboard(summary: any, events: any[]) {
     </div>
     <div>
       <h2>Performance Metrics</h2>
-      <table><thead><tr><th>Metric</th><th>Count</th></tr></thead><tbody>${perfRows}</tbody></table>
+      <table><thead><tr><th>Metric</th><th>Count</th></tr></thead><tbody>${perfRows}
     </div>
   </div>
   <div class="section">
@@ -140,4 +210,12 @@ function renderDashboard(summary: any, events: any[]) {
 </html>`;
 }
 
-export default { getSummary, getRecent, getDashboard };
+export default {
+  getSummary,
+  getRecent,
+  getDashboard,
+  getPerformanceMetrics,
+  getUserBehavior,
+  getTrends,
+  getComplexAnalytics,
+};

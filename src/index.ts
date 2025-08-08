@@ -13,6 +13,7 @@ import kafkaRouter from './routes/kafka.js';
 import analyticsRouter from './routes/analytics.js';
 import rabbitmqRouter from './routes/rabbitmq.js';
 import emailRouter from './routes/email.js';
+import businessIntelligenceRouter from './routes/business-intelligence.js';
 import kafkaService from './lib/kafka.js';
 import redisService from './lib/redis.js';
 import elasticsearchService from './lib/elasticsearch.js';
@@ -48,6 +49,7 @@ app.use('/api/v1/kafka', kafkaRouter);
 app.use('/api/v1/analytics', analyticsRouter);
 app.use('/api/v1/rabbitmq', rabbitmqRouter);
 app.use('/api/v1/email', emailRouter);
+app.use('/api/v1/business-intelligence', businessIntelligenceRouter);
 
 // Setup Swagger documentation
 setupSwagger(app);
