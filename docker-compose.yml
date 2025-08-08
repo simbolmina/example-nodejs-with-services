@@ -143,20 +143,6 @@ services:
     networks:
       - ecommerce-network
 
-  # # Kibana - Elasticsearch UI
-  # kibana:
-  #   image: docker.elastic.co/kibana/kibana:9.1.0
-  #   depends_on:
-  #     - elasticsearch
-  #   environment:
-  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-  #     - SERVER_PUBLICBASEURL=http://localhost:5601
-  #   ports:
-  #     - '5601:5601'
-  #   restart: unless-stopped
-  #   networks:
-  #     - ecommerce-network
-
   # Zookeeper (required for Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
