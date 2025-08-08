@@ -262,7 +262,7 @@ docker-compose >= 2.0.0
 ```bash
 # Clone the repository
 git clone <your-repo>
-cd e-commerce-analytics-hub
+cd nodejs-microservices-demo
 
 # Install dependencies
 npm install
