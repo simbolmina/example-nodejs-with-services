@@ -11,9 +11,13 @@ import elasticsearchAdminRouter from './routes/search.js';
 import redisRouter from './routes/redis.js';
 import kafkaRouter from './routes/kafka.js';
 import analyticsRouter from './routes/analytics.js';
+import rabbitmqRouter from './routes/rabbitmq.js';
+import emailRouter from './routes/email.js';
 import kafkaService from './lib/kafka.js';
 import redisService from './lib/redis.js';
 import elasticsearchService from './lib/elasticsearch.js';
+import rabbitmqService from './services/RabbitMQService.js';
+import emailService from './services/EmailService.js';
 
 dotenv.config();
 
@@ -42,6 +46,8 @@ app.use('/api/v1/elasticsearch', elasticsearchAdminRouter);
 app.use('/api/v1/redis', redisRouter);
 app.use('/api/v1/kafka', kafkaRouter);
 app.use('/api/v1/analytics', analyticsRouter);
+app.use('/api/v1/rabbitmq', rabbitmqRouter);
+app.use('/api/v1/email', emailRouter);
 
 // Setup Swagger documentation
 setupSwagger(app);
@@ -84,6 +90,13 @@ const gracefulShutdown = async () => {
     console.error('❌ Error disconnecting Elasticsearch:', error);
   }
 
+  try {
+    await rabbitmqService.disconnectRabbitMQ();
+    console.log('✅ RabbitMQ disconnected');
+  } catch (error) {
+    console.error('❌ Error disconnecting RabbitMQ:', error);
+  }
+
   process.exit(0);
 };
 
@@ -93,40 +106,42 @@ process.on('SIGINT', gracefulShutdown);
 // Start server
 const startServer = async () => {
   try {
-    try {
-      await kafkaService.connect();
-    } catch (err) {
-      console.error('❌ Kafka connect failed (continuing):', err);
-    }
-
-    try {
-      await redisService.connect();
-    } catch (err) {
-      console.error('❌ Redis connect failed (continuing):', err);
-    }
-
-    try {
-      await elasticsearchService.connect();
-    } catch (err) {
-      console.error('❌ Elasticsearch connect failed (continuing):', err);
-    }
-
-    app.listen(PORT, () => {
-      console.log(`🚀 API Gateway server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
-      console.log(`📚 API status: http://localhost:${PORT}/status`);
-      console.log('🔥 Hot reload is working!');
-    });
-  } catch (error) {
-    console.error(
-      '❌ Unexpected error while starting server (continuing):',
-      error
-    );
-    app.listen(PORT, () => {
-      console.log(`🚀 API Gateway server running on port ${PORT} (degraded)`);
-    });
+    await kafkaService.connect();
+  } catch (err) {
+    console.error('❌ Kafka connect failed (continuing):', err);
   }
+
+  try {
+    await redisService.connect();
+  } catch (err) {
+    console.error('❌ Redis connect failed (continuing):', err);
+  }
+
+  try {
+    await elasticsearchService.connect();
+  } catch (err) {
+    console.error('❌ Elasticsearch connect failed (continuing):', err);
+  }
+
+  try {
+    await rabbitmqService.connectRabbitMQ();
+  } catch (err) {
+    console.error('❌ RabbitMQ connect failed (continuing):', err);
+  }
+
+  try {
+    await emailService.initializeEmailService();
+  } catch (err) {
+    console.error('❌ Email service initialization failed (continuing):', err);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 API Gateway server running on port ${PORT}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`📚 API status: http://localhost:${PORT}/status`);
+    console.log('🔥 Hot reload is working!');
+  });
 };
 
 startServer();

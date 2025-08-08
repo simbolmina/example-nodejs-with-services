@@ -35,8 +35,6 @@ export default {
   recordEvent,
 };
 
-import redisService from '../lib/redis.js';
-
 export interface SetDataOptions {
   ttl?: number;
   nx?: boolean;

@@ -122,6 +122,10 @@ src/
 - Price change alerts and market analysis
 - Custom business rule triggers and automation
 - Kafka event streaming for real-time alerts
+- Email notifications with professional HTML templates
+- RabbitMQ integration for reliable message queuing
+- Background notification processing
+- Secure development with Ethereal Email
 
 ### 5. Analytics Dashboard
 
@@ -141,6 +145,19 @@ src/
 - **Event Processor**: Kafka consumer processing all event types
 - **Redis Analytics Storage**: Real-time data aggregation and storage
 
+### 7. Email Notifications ✅ NEW
+
+- **Email Service**: Nodemailer integration with Ethereal Email for development
+- **Email Templates**: Professional HTML templates for all alert types
+- **Low Stock Alerts**: Automated notifications when inventory falls below threshold
+- **High Demand Alerts**: Notifications for products with high view/search activity
+- **Price Change Alerts**: Notifications for significant price updates
+- **Welcome Emails**: Onboarding emails for new users
+- **Custom Email Support**: Flexible email sending with custom content
+- **Secure Development**: No real SMTP credentials in codebase
+- **Preview URLs**: Ethereal Email preview links for testing
+- **Background Processing**: Notification worker for reliable email delivery
+
 ## 🛠️ Microservices Architecture
 
 | Service                  | Technology              | Purpose                            |
@@ -149,7 +166,7 @@ src/
 | **Product Service**      | Express + PostgreSQL    | Product CRUD, inventory management |
 | **Search Service**       | Express + Elasticsearch | Product search, analytics queries  |
 | **Event Processor**      | Node.js + Kafka + Redis | Stream processing, analytics       |
-| **Notification Service** | Node.js + RabbitMQ      | Email/SMS queue processing         |
+| **Notification Service** | Node.js + RabbitMQ      | Email notifications and alerts     |
 
 ## 🎯 Technical Highlights
 
@@ -275,6 +292,15 @@ curl http://localhost:3000/api/v1/products
 - `GET /api/v1/analytics/summary` - Get aggregated analytics data
 - `GET /api/v1/analytics/recent` - Get recent events log
 - `GET /api/v1/analytics/dashboard` - Live analytics dashboard view
+
+### Email Notifications ✅ NEW
+
+- `GET /api/v1/email/status` - Email service status
+- `POST /api/v1/email/welcome` - Send welcome email
+- `POST /api/v1/email/low-stock-alert` - Send low stock alert
+- `POST /api/v1/email/high-demand-alert` - Send high demand alert
+- `POST /api/v1/email/price-change-alert` - Send price change alert
+- `POST /api/v1/email/custom` - Send custom email
 
 ### Redis Management
 

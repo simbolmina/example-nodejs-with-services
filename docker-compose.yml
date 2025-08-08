@@ -20,7 +20,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - KAFKA_BROKERS=kafka:9092
-      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - RABBITMQ_URL=amqp://admin:password@rabbitmq:5672
       - KAFKAJS_NO_PARTITIONER_WARNING=1
     command: npm run dev
     restart: unless-stopped
@@ -68,6 +68,26 @@ services:
       kafka:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
+
+  # Notification Worker - RabbitMQ consumer for sending notifications
+  notification-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: notification-worker
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - RABBITMQ_URL=amqp://admin:password@rabbitmq:5672
+    command: npm run notification-worker
+    depends_on:
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -198,12 +218,19 @@ services:
   # RabbitMQ
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: password
     ports:
       - '5672:5672' # AMQP port
       - '15672:15672' # Management UI
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
