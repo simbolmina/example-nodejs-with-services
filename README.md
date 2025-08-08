@@ -57,6 +57,8 @@ src/
 │   ├── ElasticsearchService.ts
 │   ├── RedisService.ts
 │   └── KafkaService.ts
+├── workers/              # Background services and workers
+│   └── event-processor.ts
 ├── routes/               # Route definitions only
 │   ├── products.ts
 │   ├── categories.ts
@@ -68,6 +70,9 @@ src/
 │   ├── elasticsearch.ts
 │   ├── kafka.ts
 │   └── redis.ts
+├── scripts/              # One-time utilities and setup
+│   ├── reindex-products.ts
+│   └── init-elasticsearch.ts
 └── middleware/           # Express middleware
 ```
 
@@ -125,6 +130,16 @@ src/
 - User behavior insights and segmentation
 - System performance and health monitoring
 - Event-driven analytics processing
+
+### 6. Real-time Analytics
+
+- **Live Analytics Dashboard**: Real-time aggregated data view
+- **Search Analytics**: Query tracking, top searches, and result analytics
+- **Product Analytics**: Event counts, view tracking, and performance metrics
+- **System Analytics**: Performance monitoring and health tracking
+- **Recent Events Log**: Rolling log of the last 1000 events
+- **Event Processor**: Kafka consumer processing all event types
+- **Redis Analytics Storage**: Real-time data aggregation and storage
 
 ## 🛠️ Microservices Architecture
 
@@ -255,6 +270,12 @@ curl http://localhost:3000/api/v1/products
 - `POST /api/v1/kafka/events/system-health` - Publish system health event
 - `POST /api/v1/kafka/events/performance-metric` - Publish performance metric event
 
+### Analytics ✅ NEW
+
+- `GET /api/v1/analytics/summary` - Get aggregated analytics data
+- `GET /api/v1/analytics/recent` - Get recent events log
+- `GET /api/v1/analytics/dashboard` - Live analytics dashboard view
+
 ### Redis Management
 
 - `GET /api/v1/redis/health` - Redis health check
@@ -302,9 +323,11 @@ npm run db:studio    # Open Prisma Studio
 
 - **API Gateway**: http://localhost:3000
 - **API Documentation**: http://localhost:3000/docs
+- **Analytics Dashboard**: http://localhost:3000/api/v1/analytics/dashboard
 - **pgAdmin**: http://localhost:5050 (admin@example.com / password)
 - **RabbitMQ Management**: http://localhost:15672 (admin / password)
 - **Elasticsearch**: http://localhost:9200
+- **Kibana (Elasticsearch UI)**: http://localhost:5601
 - **Kafka**: localhost:29092
 
 ### Database Connection

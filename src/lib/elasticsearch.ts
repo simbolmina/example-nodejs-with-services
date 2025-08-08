@@ -217,7 +217,11 @@ export const getDocument = async (
 
     console.log(`✅ Retrieved document ${id} from ${indexName}`);
     return result;
-  } catch (error) {
+  } catch (error: any) {
+    const status = error?.meta?.statusCode || error?.statusCode;
+    if (status === 404) {
+      return { found: false };
+    }
     console.error(`❌ Error getting document ${id} from ${indexName}:`, error);
     throw error;
   }

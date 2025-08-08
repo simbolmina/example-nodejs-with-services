@@ -42,6 +42,37 @@ services:
         - action: rebuild
           path: package.json
 
+  # Event Processor Worker - Kafka consumer writing analytics to Redis
+  event-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: event-processor
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=ecommerce-event-processor
+      - KAFKA_CONSUMER_GROUP=event-processor-consumer
+      - KAFKA_TOPIC_PRODUCTS=product-events
+      - KAFKA_TOPIC_SEARCH=search-analytics
+      - KAFKA_TOPIC_USER=user-activity
+      - KAFKA_TOPIC_SYSTEM=system-events
+      - KAFKA_TOPIC_PERF=performance-metrics
+      - KAFKAJS_NO_PARTITIONER_WARNING=1
+    command: npm run worker
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -61,8 +92,15 @@ services:
   # Redis Cache
   redis:
     image: redis:7-alpine
+    container_name: redis
     ports:
       - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -85,14 +123,35 @@ services:
     networks:
       - ecommerce-network
 
+  # # Kibana - Elasticsearch UI
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:9.1.0
+  #   depends_on:
+  #     - elasticsearch
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+  #     - SERVER_PUBLICBASEURL=http://localhost:5601
+  #   ports:
+  #     - '5601:5601'
+  #   restart: unless-stopped
+  #   networks:
+  #     - ecommerce-network
+
   # Zookeeper (required for Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - '2181:2181'
+    healthcheck:
+      test: ['CMD-SHELL', 'echo ruok | nc localhost 2181']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
@@ -103,19 +162,33 @@ services:
   # Kafka
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
     depends_on:
-      - zookeeper
-    ports:
-      - '9092:9092'
-      - '29092:29092'
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+    ports:
+      - '9092:9092'
+      - '29092:29092'
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'kafka-topics --bootstrap-server localhost:9092 --list']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - kafka_data:/var/lib/kafka/data
     restart: unless-stopped

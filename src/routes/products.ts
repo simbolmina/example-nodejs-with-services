@@ -29,8 +29,14 @@ router.use(productRateLimit);
 // Get all products (cached for 2 minutes)
 router.get('/', cacheMiddleware({ ttl: 120 }), getProducts);
 
+// Search products (cached for 1 minute due to dynamic nature) - MUST come before /:id
+router.get('/search', cacheMiddleware({ ttl: 60 }), searchProducts);
+
 // Get product by ID (cached for 5 minutes)
 router.get('/:id', cacheMiddleware({ ttl: 300 }), getProductById);
+
+// Get product details from Elasticsearch (cached for 3 minutes)
+router.get('/:id/details', cacheMiddleware({ ttl: 180 }), getProductDetails);
 
 // Create product (invalidates product cache)
 router.post('/', invalidateCache('cache:/api/v1/products*'), createProduct);
@@ -44,11 +50,5 @@ router.delete(
   invalidateCache('cache:/api/v1/products*'),
   deleteProduct
 );
-
-// Search products (cached for 1 minute due to dynamic nature)
-router.get('/search', cacheMiddleware({ ttl: 60 }), searchProducts);
-
-// Get product details from Elasticsearch (cached for 3 minutes)
-router.get('/:id/details', cacheMiddleware({ ttl: 180 }), getProductDetails);
 
 export default router;

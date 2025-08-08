@@ -160,6 +160,28 @@ export const flushdb = async (): Promise<string> => {
   return await client.flushDb();
 };
 
+// Counter operations
+export const incrBy = async (
+  key: string,
+  amount: number = 1
+): Promise<number> => {
+  if (!client) {
+    throw new Error('Redis client not connected');
+  }
+  return await client.incrBy(key, amount);
+};
+
+export const hIncrBy = async (
+  key: string,
+  field: string,
+  increment: number = 1
+): Promise<number> => {
+  if (!client) {
+    throw new Error('Redis client not connected');
+  }
+  return await client.hIncrBy(key, field, increment);
+};
+
 // Hash operations
 export const hSet = async (
   key: string,
@@ -345,11 +367,13 @@ const redisService = {
   memory,
   ping,
   flushdb,
+  incrBy,
   hSet,
   hSetMultiple,
   hGet,
   hGetAll,
   hDel,
+  hIncrBy,
   lPush,
   rPush,
   lPop,

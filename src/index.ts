@@ -10,6 +10,7 @@ import categoryRouter from './routes/categories.js';
 import elasticsearchAdminRouter from './routes/search.js';
 import redisRouter from './routes/redis.js';
 import kafkaRouter from './routes/kafka.js';
+import analyticsRouter from './routes/analytics.js';
 import kafkaService from './lib/kafka.js';
 import redisService from './lib/redis.js';
 import elasticsearchService from './lib/elasticsearch.js';
@@ -40,6 +41,7 @@ app.use('/api/v1/categories', categoryRouter);
 app.use('/api/v1/elasticsearch', elasticsearchAdminRouter);
 app.use('/api/v1/redis', redisRouter);
 app.use('/api/v1/kafka', kafkaRouter);
+app.use('/api/v1/analytics', analyticsRouter);
 
 // Setup Swagger documentation
 setupSwagger(app);
@@ -91,14 +93,23 @@ process.on('SIGINT', gracefulShutdown);
 // Start server
 const startServer = async () => {
   try {
-    // Connect to Kafka
-    await kafkaService.connect();
+    try {
+      await kafkaService.connect();
+    } catch (err) {
+      console.error('❌ Kafka connect failed (continuing):', err);
+    }
 
-    // Connect to Redis
-    await redisService.connect();
+    try {
+      await redisService.connect();
+    } catch (err) {
+      console.error('❌ Redis connect failed (continuing):', err);
+    }
 
-    // Connect to Elasticsearch
-    await elasticsearchService.connect();
+    try {
+      await elasticsearchService.connect();
+    } catch (err) {
+      console.error('❌ Elasticsearch connect failed (continuing):', err);
+    }
 
     app.listen(PORT, () => {
       console.log(`🚀 API Gateway server running on port ${PORT}`);
@@ -108,8 +119,13 @@ const startServer = async () => {
       console.log('🔥 Hot reload is working!');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    console.error(
+      '❌ Unexpected error while starting server (continuing):',
+      error
+    );
+    app.listen(PORT, () => {
+      console.log(`🚀 API Gateway server running on port ${PORT} (degraded)`);
+    });
   }
 };
 

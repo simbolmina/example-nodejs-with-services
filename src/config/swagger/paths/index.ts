@@ -4,6 +4,7 @@ import { categoryPaths } from './categories.js';
 import { elasticsearchPaths } from './elasticsearch.js';
 import { redisPaths } from './redis.js';
 import { kafkaPaths } from './kafka.js';
+import { analyticsPaths } from './analytics.js';
 
 export const paths = {
   ...systemPaths,
@@ -12,4 +13,5 @@ export const paths = {
   ...elasticsearchPaths,
   ...redisPaths,
   ...kafkaPaths,
+  ...analyticsPaths,
 };

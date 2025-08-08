@@ -1,5 +1,42 @@
 import redisService from '../lib/redis.js';
 
+export const incrementCounter = async (key: string, amount: number = 1) => {
+  return await redisService.incrBy(key, amount);
+};
+
+export const incrementHashCounter = async (
+  key: string,
+  field: string,
+  amount: number = 1
+) => {
+  return await redisService.hIncrBy(key, field, amount);
+};
+
+export const recordEvent = async (
+  listKey: string,
+  value: string,
+  maxLen = 1000
+) => {
+  // Push to list and optionally trim
+  const length = await redisService.lPush(listKey, value);
+  if (length > maxLen) {
+    // Trim list to max length
+    const client = redisService.getClient();
+    if (client) {
+      await client.lTrim(listKey, 0, maxLen - 1);
+    }
+  }
+  return length;
+};
+
+export default {
+  incrementCounter,
+  incrementHashCounter,
+  recordEvent,
+};
+
+import redisService from '../lib/redis.js';
+
 export interface SetDataOptions {
   ttl?: number;
   nx?: boolean;

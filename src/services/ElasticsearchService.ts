@@ -47,6 +47,7 @@ export const getConnectionStatus = async () => {
   const isConnected = elasticsearchService.isConnected();
   return {
     connected: isConnected,
+    url: process.env.ELASTICSEARCH_URL || 'http://elasticsearch:9200',
     timestamp: new Date().toISOString(),
   };
 };
@@ -197,13 +198,13 @@ export const deleteDocument = async (indexName: string, documentId: string) => {
  * Search documents
  */
 export const searchDocuments = async (indexName: string, data: SearchData) => {
-  const { query, options } = data;
-
-  const result = await elasticsearchService.search(indexName, query, options);
+  // Accept full body (including query/size/sort) and optional client options
+  const { options, ...body } = (data as any) || {};
+  const result = await elasticsearchService.search(indexName, body, options);
 
   return {
     index: indexName,
-    query,
+    query: (body as any)?.query,
     total: result.hits.total.value,
     hits: result.hits.hits,
     aggregations: result.aggregations,

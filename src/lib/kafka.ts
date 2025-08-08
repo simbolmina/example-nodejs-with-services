@@ -49,9 +49,17 @@ let consumer: Consumer;
 let connected: boolean = false;
 
 export const initialize = () => {
+  const clientId = process.env.KAFKA_CLIENT_ID || 'ecommerce-api-gateway';
+  const brokersEnv =
+    process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || 'kafka:9092';
+  const brokers = brokersEnv
+    .split(',')
+    .map((b) => b.trim())
+    .filter(Boolean);
+
   kafka = new Kafka({
-    clientId: 'ecommerce-api-gateway',
-    brokers: [process.env.KAFKA_BROKER || 'kafka:9092'],
+    clientId,
+    brokers,
     retry: {
       initialRetryTime: 100,
       retries: 8,
@@ -62,7 +70,8 @@ export const initialize = () => {
   producer = kafka.producer({
     createPartitioner: Partitioners.LegacyPartitioner,
   });
-  consumer = kafka.consumer({ groupId: 'api-gateway-consumer' });
+  const groupId = process.env.KAFKA_CONSUMER_GROUP || 'api-gateway-consumer';
+  consumer = kafka.consumer({ groupId });
 };
 
 export const connect = async (): Promise<void> => {
@@ -363,6 +372,45 @@ export const subscribeToTopic = async (
 };
 
 /**
+ * Subscribe to multiple topics and run a single consumer loop
+ */
+export const subscribeToTopics = async (
+  topics: string[],
+  handler: (payload: { topic: string; message: KafkaMessage }) => void
+): Promise<void> => {
+  if (!consumer) {
+    throw new Error('Kafka consumer not initialized');
+  }
+
+  try {
+    for (const topic of topics) {
+      await consumer.subscribe({ topic, fromBeginning: false });
+    }
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        try {
+          console.log(`📨 Received message from topic ${topic}`);
+          handler({ topic, message });
+        } catch (error) {
+          console.error(
+            `❌ Error processing message from topic ${topic}:`,
+            error
+          );
+        }
+      },
+    });
+
+    console.log(`✅ Subscribed to topics: ${topics.join(', ')}`);
+  } catch (error) {
+    console.error(
+      `❌ Failed to subscribe to topics [${topics.join(', ')}]:`,
+      error
+    );
+    throw error;
+  }
+};
+
+/**
  * Generate unique event ID
  */
 const generateEventId = (): string => {
@@ -412,6 +460,7 @@ const kafkaService = {
   publishPerformanceMetric,
   publishEvent,
   subscribeToTopic,
+  subscribeToTopics,
   healthCheck,
 };
 

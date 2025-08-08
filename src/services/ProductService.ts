@@ -210,7 +210,7 @@ export const searchProducts = async (filters: SearchFilters) => {
             },
           },
         ],
-        filter: [],
+        filter: [] as any[],
       },
     },
     sort: [{ [sortBy]: { order: sortOrder } }],
